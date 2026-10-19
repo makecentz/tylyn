@@ -9,7 +9,7 @@ function telHref(phone: string) {
 
 function Column({ title, links }: { title: string; links: { href: string; label: string }[] }) {
   return (
-    <nav aria-label={title} className="flex min-w-[150px] flex-1 flex-col gap-3 text-sm">
+    <nav aria-label={title} className="flex flex-col gap-3 text-sm">
       <span className="mb-1 text-xs font-bold uppercase tracking-[0.14em] text-gold">{title}</span>
       {links.map((l) => (
         <Link key={l.label} href={l.href} className="text-[#F3EDF0] hover:text-pink-light">
@@ -29,13 +29,13 @@ export function SiteFooter({ contact }: { contact: SiteContentMap["contact"] }) 
 
   return (
     <footer id="footer" className="border-t-4 border-pink bg-ink text-white">
-      <div className="mx-auto flex max-w-[1200px] flex-wrap gap-12 px-4 pb-12 pt-16 sm:px-6">
-        <div className="flex min-w-[260px] flex-[2] flex-col gap-5">
+      <div className="mx-auto grid max-w-[1200px] grid-cols-1 gap-10 px-4 pb-12 pt-14 sm:grid-cols-2 sm:px-6 lg:grid-cols-[1.35fr_1fr_1fr_1fr_1.25fr] lg:gap-8">
+        <div className="flex flex-col gap-4 sm:col-span-2 lg:col-span-1">
           <Link href="/" aria-label="Tylyn Tingz Creations, home" className="self-start">
-            <Image src="/logo.png" alt="Tylyn Tingz Creations" width={900} height={311} className="h-24 w-auto" />
+            <Image src="/logo.png" alt="Tylyn Tingz Creations" width={900} height={311} className="h-16 w-auto" />
           </Link>
-          {contact.tagline ? <p className="font-script text-3xl leading-tight text-pink-light">{contact.tagline}</p> : null}
-          <p className="max-w-sm text-sm leading-7 text-[#CFC6CB]">
+          {contact.tagline ? <p className="font-script text-2xl leading-tight text-pink-light">{contact.tagline}</p> : null}
+          <p className="max-w-xs text-[13px] leading-6 text-[#CFC6CB]">
             Custom party favors, party packages and 1-on-1 craft classes, all made to order for your celebration.
           </p>
           {socials.length ? (
@@ -80,7 +80,7 @@ export function SiteFooter({ contact }: { contact: SiteContentMap["contact"] }) 
           ]}
         />
 
-        <div className="flex min-w-[220px] flex-1 flex-col gap-3.5 text-sm">
+        <div className="flex min-w-0 flex-col gap-3.5 text-sm">
           <span className="mb-1 text-xs font-bold uppercase tracking-[0.14em] text-gold">Contact us</span>
           {contact.phone ? (
             <a href={telHref(contact.phone)} className="flex items-center gap-2.5 text-[#F3EDF0] hover:text-pink-light">
@@ -89,7 +89,7 @@ export function SiteFooter({ contact }: { contact: SiteContentMap["contact"] }) 
             </a>
           ) : null}
           {contact.email ? (
-            <a href={`mailto:${contact.email}`} className="flex items-center gap-2.5 text-[#F3EDF0] hover:text-pink-light">
+            <a href={`mailto:${contact.email}`} className="flex items-center gap-2.5 break-all text-[#F3EDF0] hover:text-pink-light">
               <MailIcon className="h-[18px] w-[18px] text-pink-light" />
               {contact.email}
             </a>
