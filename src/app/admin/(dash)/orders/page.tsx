@@ -1,19 +1,21 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import type { OrderStatus, Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { formatCents } from "@/lib/money";
 import { PageTitle, PaymentPill, StatusPill, statusLabels } from "../admin-ui";
 
 const OPEN: OrderStatus[] = ["NEW", "PROOF_SENT", "IN_PRODUCTION", "READY", "SHIPPED"];
+// Class-only bookings live on the Class bookings page.
+const PRODUCT_ORDERS: Prisma.OrderWhereInput = { paymentStatus: { not: "PENDING" }, items: { some: { kind: "PRODUCT" } } };
 
 export default async function OrdersPage({ searchParams }: { searchParams: Promise<{ status?: string; q?: string; type?: string }> }) {
   const { status, q, type } = await searchParams;
-  const classesOnly = type === "classes";
+  if (type === "classes") redirect("/admin/classes");
 
   const where: Prisma.OrderWhereInput = {
-    paymentStatus: { not: "PENDING" },
+    ...PRODUCT_ORDERS,
     ...(status === "open" || !status ? { status: { in: OPEN } } : status === "all" ? {} : { status: status as OrderStatus }),
-    ...(classesOnly ? { items: { some: { kind: "SERVICE" } } } : {}),
     ...(q
       ? {
           OR: [
@@ -32,7 +34,7 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
 
   const [orders, counts, monthSales] = await Promise.all([
     db.order.findMany({ where, include: { items: true }, orderBy: { createdAt: "desc" }, take: 200 }),
-    db.order.groupBy({ by: ["status"], where: { paymentStatus: { not: "PENDING" } }, _count: true }),
+    db.order.groupBy({ by: ["status"], where: PRODUCT_ORDERS, _count: true }),
     db.order.aggregate({
       where: { paymentStatus: { in: ["PAID", "PARTIALLY_REFUNDED"] }, createdAt: { gte: monthStart } },
       _sum: { totalCents: true, refundedCents: true },
@@ -47,14 +49,13 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
     { key: "all", label: "All" },
   ];
   const current = status ?? "open";
-  const qs = (s: string) => `/admin/orders?status=${s}${classesOnly ? "&type=classes" : ""}${q ? `&q=${encodeURIComponent(q)}` : ""}`;
+  const qs = (s: string) => `/admin/orders?status=${s}${q ? `&q=${encodeURIComponent(q)}` : ""}`;
 
   return (
     <>
       <PageTitle
         actions={
           <form className="flex items-center gap-2" action="/admin/orders">
-            {classesOnly ? <input type="hidden" name="type" value="classes" /> : null}
             <input type="hidden" name="status" value="all" />
             <label className="sr-only" htmlFor="q">Search orders</label>
             <input id="q" name="q" defaultValue={q} placeholder="Name, email, phone or order #" className="input w-64" />
@@ -62,7 +63,7 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
           </form>
         }
       >
-        {classesOnly ? "Class bookings" : "Orders"}
+        Orders
       </PageTitle>
 
       <div className="mb-6 grid grid-cols-[repeat(auto-fit,minmax(170px,1fr))] gap-4">
@@ -86,7 +87,7 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
             <tr className="text-left text-xs uppercase tracking-[0.08em] text-mute">
               <th scope="col" className="px-5 py-4 font-semibold">Order</th>
               <th scope="col" className="px-3 py-4 font-semibold">Customer</th>
-              <th scope="col" className="px-3 py-4 font-semibold">Event or class date</th>
+              <th scope="col" className="px-3 py-4 font-semibold">Event date</th>
               <th scope="col" className="px-3 py-4 font-semibold">Total</th>
               <th scope="col" className="px-5 py-4 font-semibold">Status</th>
             </tr>

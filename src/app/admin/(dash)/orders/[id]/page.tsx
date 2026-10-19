@@ -2,8 +2,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { formatCents } from "@/lib/money";
-import { updateOrder } from "../../../actions";
-import { Flash, PaymentPill, StatusPill, statusLabels } from "../../admin-ui";
+import { classStatuses } from "@/lib/classes";
+import { updateClassBooking, updateOrder } from "../../../actions";
+import { ClassStatusPill, Flash, PaymentPill, StatusPill, classStatusLabels, statusLabels } from "../../admin-ui";
 import { RefundForm } from "./RefundForm";
 
 function isImageUrl(v: string) {
@@ -14,15 +15,20 @@ export default async function OrderDetail({ params, searchParams }: { params: Pr
   const order = await db.order.findUnique({ where: { id: (await params).id }, include: { items: true } });
   if (!order) notFound();
   const { saved } = await searchParams;
+  const hasClass = order.items.some((i) => i.kind === "SERVICE");
+  const hasProducts = order.items.some((i) => i.kind === "PRODUCT");
   const addr = order.shippingAddress as { address1: string; address2?: string; city: string; state: string; zip: string } | null;
 
   return (
     <div className="flex flex-col gap-6">
-      <Link href="/admin/orders" className="text-sm font-semibold text-pink-deep">← All orders</Link>
-      <Flash message={saved ? "Order updated." : undefined} />
+      <Link href={hasProducts ? "/admin/orders" : "/admin/classes"} className="text-sm font-semibold text-pink-deep">
+        {hasProducts ? "← All orders" : "← All class bookings"}
+      </Link>
+      <Flash message={saved ? (hasProducts ? "Order updated." : "Booking updated.") : undefined} />
       <div className="flex flex-wrap items-center gap-4">
-        <h1 className="font-serif text-3xl">Order #{order.number}</h1>
-        <StatusPill status={order.status} />
+        <h1 className="font-serif text-3xl">{hasProducts ? "Order" : "Class booking"} #{order.number}</h1>
+        {hasProducts ? <StatusPill status={order.status} /> : null}
+        {hasClass ? <ClassStatusPill status={order.classStatus} /> : null}
         <PaymentPill status={order.paymentStatus} />
       </div>
 
@@ -75,25 +81,54 @@ export default async function OrderDetail({ params, searchParams }: { params: Pr
             <span className="font-semibold">{order.customerName}</span>
             <a href={`mailto:${order.email}?subject=${encodeURIComponent(`Your Tylyn Tingz order #${order.number}`)}`} className="text-pink-deep underline">{order.email}</a>
             <a href={`tel:${order.phone}`} className="text-pink-deep underline">{order.phone}</a>
-            <span className="mt-2 font-semibold">{order.fulfillment === "SHIPPING" ? "Ship to" : "Local pickup"}</span>
+            {hasProducts ? <span className="mt-2 font-semibold">{order.fulfillment === "SHIPPING" ? "Ship to" : "Local pickup"}</span> : null}
             {addr ? <span className="whitespace-pre-line">{`${addr.address1}${addr.address2 ? `, ${addr.address2}` : ""}\n${addr.city}, ${addr.state} ${addr.zip}`}</span> : null}
             {order.customerNote ? <p className="mt-2 rounded-lg bg-blush p-3"><strong>Note:</strong> {order.customerNote}</p> : null}
             <span className="mt-2 text-xs text-mute">Placed {order.createdAt.toLocaleString()}</span>
             {order.receiptUrl ? <a href={order.receiptUrl} target="_blank" rel="noreferrer" className="text-xs text-pink-deep underline">Square receipt</a> : null}
           </section>
 
-          <form action={updateOrder} className="card flex flex-col gap-3">
-            <input type="hidden" name="id" value={order.id} />
-            <label className="field">Status
-              <select name="status" defaultValue={order.status} className="input">
-                {Object.entries(statusLabels).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-              </select>
-            </label>
-            <label className="field">Private notes
-              <textarea name="adminNotes" defaultValue={order.adminNotes ?? ""} rows={3} className="input" placeholder="Only you can see these" />
-            </label>
-            <button className="btn btn-pink">Save</button>
-          </form>
+{hasClass ? (
+            <form id="schedule" action={updateClassBooking} className="card flex scroll-mt-6 flex-col gap-3 border-t-4 border-gold">
+              <h2 className="font-serif text-xl">Class schedule</h2>
+              <input type="hidden" name="id" value={order.id} />
+              <label className="field">Class date
+                <input type="date" name="classDate" defaultValue={order.classDate?.toISOString().slice(0, 10) ?? ""} className="input" />
+              </label>
+              <label className="field">Start time
+                <input type="time" name="classTime" step={900} defaultValue={order.classTime ?? ""} className="input" />
+              </label>
+              <label className="field">Where
+                <input name="classLocation" defaultValue={order.classLocation ?? ""} className="input" placeholder="e.g. My studio, their home, Zoom link" />
+              </label>
+              <label className="field">Status
+                <select name="classStatus" defaultValue={order.classStatus} className="input">
+                  {classStatuses.map((k) => <option key={k} value={k}>{classStatusLabels[k]}</option>)}
+                </select>
+              </label>
+              {hasProducts ? null : (
+                <label className="field">Private notes
+                  <textarea name="adminNotes" defaultValue={order.adminNotes ?? ""} rows={3} className="input" placeholder="Only you can see these" />
+                </label>
+              )}
+              <button className="btn btn-pink">Save class details</button>
+            </form>
+          ) : null}
+
+          {hasProducts ? (
+                      <form action={updateOrder} className="card flex flex-col gap-3">
+              <input type="hidden" name="id" value={order.id} />
+              <label className="field">Status
+                <select name="status" defaultValue={order.status} className="input">
+                  {Object.entries(statusLabels).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                </select>
+              </label>
+              <label className="field">Private notes
+                <textarea name="adminNotes" defaultValue={order.adminNotes ?? ""} rows={3} className="input" placeholder="Only you can see these" />
+              </label>
+              <button className="btn btn-pink">Save</button>
+            </form>
+          ) : null}
 
           {order.squarePaymentId && order.refundedCents < order.totalCents ? (
             <RefundForm orderId={order.id} maxCents={order.totalCents - order.refundedCents} />

@@ -40,6 +40,7 @@ export const defaultPartyFields: CustomField[] = [
 export const defaultClassFields: CustomField[] = [
   { key: "preferred_date", label: "Preferred class date", type: "date", required: true },
   { key: "backup_date", label: "Backup date", type: "date", required: false },
+  { key: "preferred_time", label: "Preferred time", type: "select", required: true, options: ["Morning (9am to 12pm)", "Afternoon (12pm to 4pm)", "Evening (4pm to 8pm)"] },
   { key: "topic", label: "What do you want to learn?", type: "select", required: true, options: ["Designing templates", "Printing techniques", "Vinyl projects", "Party favor creations", "Event graphics", "Something else"] },
   { key: "notes", label: "Anything else we should know?", type: "textarea", required: false },
 ];
