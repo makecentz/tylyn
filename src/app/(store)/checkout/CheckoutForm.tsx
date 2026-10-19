@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import Script from "next/script";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { lineTotal, useCart } from "@/components/CartProvider";
 import { FulfillmentChoice, type ShippingOptions } from "@/components/FulfillmentChoice";
@@ -30,14 +30,24 @@ declare global {
 }
 
 type Props = {
-  square: { configured: boolean; applicationId: string; locationId: string; production: boolean };
+  payments: {
+    provider: "stripe" | "square";
+    configured: boolean;
+    testMode: boolean;
+    squareApplicationId: string;
+    squareLocationId: string;
+    squareProduction: boolean;
+  };
   taxPercent: number;
   shipping: ShippingOptions;
   /** The signed-in shopper, used to fill in the form and save the order to their account. */
   account: { email: string; firstName: string; lastName: string; phone: string; address: Address | null } | null;
 };
 
-export function CheckoutForm({ square, taxPercent, shipping: shippingOptions, account }: Props) {
+export function CheckoutForm({ payments, taxPercent, shipping: shippingOptions, account }: Props) {
+  const useSquare = payments.provider === "square";
+  const square = { configured: useSquare && payments.configured, applicationId: payments.squareApplicationId, locationId: payments.squareLocationId, production: payments.squareProduction };
+  const searchParams = useSearchParams();
   const router = useRouter();
   const cart = useCart();
   const [sdkLoaded, setSdkLoaded] = useState(false);
@@ -135,7 +145,7 @@ export function CheckoutForm({ square, taxPercent, shipping: shippingOptions, ac
   }, [form, fulfillment, createAccount]);
 
   const pay = useCallback(
-    async (method: "card" | "apple" | "google" | "cashApp", presetToken?: string) => {
+    async (method: "card" | "apple" | "google" | "cashApp" | "stripe", presetToken?: string) => {
       setError(null);
       const problem = validate();
       if (problem) {
@@ -145,7 +155,7 @@ export function CheckoutForm({ square, taxPercent, shipping: shippingOptions, ac
       setPaying(true);
       try {
         let token = presetToken;
-        if (!token) {
+        if (!token && method !== "stripe") {
           const source = method === "card" ? card : wallets[method];
           if (!source) throw new Error("That payment method isn't ready yet.");
           const result =
@@ -170,7 +180,7 @@ export function CheckoutForm({ square, taxPercent, shipping: shippingOptions, ac
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            sourceId: token,
+            sourceId: token || undefined,
             idempotencyKey: idempotencyKey.current,
             expectedSubtotalCents: cart.subtotalCents,
             fulfillment,
@@ -186,6 +196,11 @@ export function CheckoutForm({ square, taxPercent, shipping: shippingOptions, ac
           // A declined card can be retried with a new token, so start a fresh attempt.
           idempotencyKey.current = "";
           throw new Error(data.error ?? "Payment failed. Please try again.");
+        }
+        if (data.redirectUrl) {
+          // Stripe's checkout page takes it from here; the cart is cleared once the order is confirmed.
+          window.location.assign(data.redirectUrl);
+          return;
         }
         cart.clear();
         router.push(`/order/${data.orderId}`);
@@ -230,7 +245,7 @@ export function CheckoutForm({ square, taxPercent, shipping: shippingOptions, ac
         />
       ) : null}
       <div className="mx-auto flex max-w-[1200px] flex-wrap items-start gap-10 px-4 pb-24 pt-10 sm:px-6">
-        <form onSubmit={(e) => { e.preventDefault(); pay("card"); }} className="flex min-w-[min(100%,560px)] flex-[999] flex-col gap-6" noValidate>
+        <form onSubmit={(e) => { e.preventDefault(); pay(useSquare ? "card" : "stripe"); }} className="flex min-w-[min(100%,560px)] flex-[999] flex-col gap-6" noValidate>
           <h1 className="font-serif text-4xl">Checkout</h1>
 
           {account ? (
@@ -283,10 +298,25 @@ export function CheckoutForm({ square, taxPercent, shipping: shippingOptions, ac
 
           <section aria-labelledby="c3" className="card flex flex-col gap-4">
             <h2 id="c3" className="font-serif text-[22px]">3. Payment</h2>
-            {!square.configured ? (
+            {searchParams.get("canceled") ? (
+              <p role="status" className="rounded-xl bg-blush p-4 text-sm">Your payment wasn&apos;t completed and you weren&apos;t charged. Your cart is still here whenever you&apos;re ready.</p>
+            ) : null}
+            {payments.configured && payments.testMode ? (
+              <p className="rounded-xl bg-[#FFF1C7] px-4 py-3 text-sm text-[#5C4500]">Test mode: no real money is charged.</p>
+            ) : null}
+            {!payments.configured ? (
               <p role="alert" className="rounded-xl bg-[#FFF1C7] p-4 text-sm text-[#5C4500]">
                 Online payments aren&apos;t switched on yet. Please contact us to place your order.
               </p>
+            ) : !useSquare ? (
+              <div className="flex flex-col gap-3 rounded-xl bg-blush p-4 text-sm">
+                <p>Next you&apos;ll pay on Stripe&apos;s secure checkout page with a card, Apple Pay or Google Pay, or pay over time with Klarna.</p>
+                <div className="flex flex-wrap gap-2" aria-hidden>
+                  {["Visa", "Mastercard", "Amex", "Apple Pay", "Google Pay", "Klarna"].map((m) => (
+                    <span key={m} className="rounded-md border border-line bg-white px-2.5 py-1 text-xs font-semibold">{m}</span>
+                  ))}
+                </div>
+              </div>
             ) : (
               <>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -307,12 +337,12 @@ export function CheckoutForm({ square, taxPercent, shipping: shippingOptions, ac
               </>
             )}
             {error ? <p role="alert" className="rounded-lg bg-[#FFE3F1] px-3 py-2 text-sm text-[#8E0B50]">{error}</p> : null}
-            <button type="submit" disabled={!square.configured || !card || paying} className="btn btn-pink min-h-14 text-[17px]">
-              {paying ? "Processing…" : `Pay ${formatCents(total)}`}
+            <button type="submit" disabled={!payments.configured || (useSquare && !card) || paying} className="btn btn-pink min-h-14 text-[17px]">
+              {paying ? (useSquare ? "Processing…" : "Opening secure checkout…") : useSquare ? `Pay ${formatCents(total)}` : `Continue to payment · ${formatCents(total)}`}
             </button>
             <span className="flex items-center justify-center gap-1.5 text-xs text-mute">
               <LockIcon className="h-3.5 w-3.5" />
-              Card details go straight to Square and never touch our servers.
+              Payment details go straight to {useSquare ? "Square" : "Stripe"} and never touch our servers.
             </span>
           </section>
         </form>

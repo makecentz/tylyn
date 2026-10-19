@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { WebhooksHelper } from "square";
 import { db } from "@/lib/db";
+import { getPaymentSettings } from "@/lib/payment-settings";
 
 /**
  * Keeps payment status in sync when a payment or refund changes in Square
@@ -8,8 +9,9 @@ import { db } from "@/lib/db";
  * Subscribe to payment.updated in the Square Developer portal; it carries refunded amounts too.
  */
 export async function POST(req: Request) {
-  const signatureKey = process.env.SQUARE_WEBHOOK_SIGNATURE_KEY;
-  const notificationUrl = process.env.SQUARE_WEBHOOK_URL;
+  const { square } = await getPaymentSettings();
+  const signatureKey = square.webhookSignatureKey;
+  const notificationUrl = square.webhookUrl;
   if (!signatureKey || !notificationUrl) return NextResponse.json({ error: "Webhook not configured" }, { status: 503 });
 
   const raw = await req.text();

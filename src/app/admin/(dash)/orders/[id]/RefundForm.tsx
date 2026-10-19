@@ -3,13 +3,13 @@
 import { useActionState, useState } from "react";
 import { refundOrder } from "../../../actions";
 
-export function RefundForm({ orderId, maxCents }: { orderId: string; maxCents: number }) {
+export function RefundForm({ orderId, maxCents, processor }: { orderId: string; maxCents: number; processor: string }) {
   const [state, action, pending] = useActionState(refundOrder, null);
   const [open, setOpen] = useState(false);
   if (!open) {
     return (
       <button type="button" onClick={() => setOpen(true)} className="btn min-h-11 border-[1.5px] border-[#B3124F] bg-white text-[#B3124F]">
-        Refund through Square
+        Refund through {processor}
       </button>
     );
   }
@@ -17,7 +17,7 @@ export function RefundForm({ orderId, maxCents }: { orderId: string; maxCents: n
     <form
       action={action}
       onSubmit={(e) => {
-        if (!confirm("Send this refund to the customer's card? This can't be undone.")) e.preventDefault();
+        if (!confirm("Send this refund to the customer? This can't be undone.")) e.preventDefault();
       }}
       className="card flex flex-col gap-3 border-[1.5px] border-[#B3124F]"
     >

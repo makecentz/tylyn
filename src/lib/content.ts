@@ -67,7 +67,7 @@ export const defaultContent: SiteContentMap = {
     steps: [
       { title: "Pick your package", body: "Choose a bundle or build your own from single items and add-ons." },
       { title: "Tell us your theme", body: "Add the name, age, theme, event date and a photo right on the product page." },
-      { title: "Pay securely", body: "Check out with card, Apple Pay, Google Pay or Cash App Pay, powered by Square." },
+      { title: "Pay securely", body: "Check out securely with card, Apple Pay or Google Pay, or pay over time with Klarna." },
       { title: "Proof, then party", body: "We send a design proof, make your order, and have it ready for pickup or shipping." },
     ],
   },

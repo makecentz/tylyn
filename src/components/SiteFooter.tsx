@@ -20,7 +20,7 @@ function Column({ title, links }: { title: string; links: { href: string; label:
   );
 }
 
-export function SiteFooter({ contact }: { contact: SiteContentMap["contact"] }) {
+export function SiteFooter({ contact, processor }: { contact: SiteContentMap["contact"]; processor: string }) {
   const socials = [
     contact.instagram && { href: `https://instagram.com/${contact.instagram}`, label: "Instagram", Icon: InstagramIcon },
     contact.facebook && { href: contact.facebook.startsWith("http") ? contact.facebook : `https://facebook.com/${contact.facebook}`, label: "Facebook", Icon: FacebookIcon },
@@ -125,7 +125,7 @@ export function SiteFooter({ contact }: { contact: SiteContentMap["contact"] }) 
           </nav>
           <span className="flex items-center gap-1.5">
             <LockIcon className="h-3.5 w-3.5 text-gold" />
-            Secure payments by Square
+            Secure payments by {processor}
           </span>
         </div>
       </div>

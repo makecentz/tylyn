@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider  = "postgresql"
   url       = env("DATABASE_URL")
   // Neon's direct (non-pooled) connection, used for migrations
   directUrl = env("DATABASE_URL_UNPOOLED")
@@ -39,6 +39,11 @@ enum PaymentStatus {
   FAILED
   REFUNDED
   PARTIALLY_REFUNDED
+}
+
+enum PaymentProvider {
+  SQUARE
+  STRIPE
 }
 
 enum Fulfillment {
@@ -106,56 +111,61 @@ model Customer {
 }
 
 model Order {
-  id              String        @id @default(cuid())
-  number          Int           @unique @default(autoincrement())
-  status          OrderStatus   @default(NEW)
-  paymentStatus   PaymentStatus @default(PENDING)
-  customerName    String
-  email           String
-  phone           String
-  fulfillment     Fulfillment   @default(PICKUP)
+  id                    String          @id @default(cuid())
+  number                Int             @unique @default(autoincrement())
+  status                OrderStatus     @default(NEW)
+  paymentStatus         PaymentStatus   @default(PENDING)
+  customerName          String
+  email                 String
+  phone                 String
+  fulfillment           Fulfillment     @default(PICKUP)
   // The buyer's address: where to ship, or their contact address for pickup orders and classes
-  shippingAddress Json?
-  customerNote    String?
-  subtotalCents   Int
-  taxCents        Int           @default(0)
-  shippingCents   Int           @default(0)
-  totalCents      Int
-  refundedCents   Int           @default(0)
-  squareOrderId   String?       @unique
-  squarePaymentId String?       @unique
-  receiptUrl      String?
+  shippingAddress       Json?
+  customerNote          String?
+  subtotalCents         Int
+  taxCents              Int             @default(0)
+  shippingCents         Int             @default(0)
+  totalCents            Int
+  refundedCents         Int             @default(0)
+  paymentProvider       PaymentProvider @default(SQUARE)
+  stripeSessionId       String?         @unique
+  stripePaymentIntentId String?         @unique
+  // bcrypt hash of the password a guest chose at checkout; the account is created once payment clears
+  pendingAccountHash    String?
+  squareOrderId         String?         @unique
+  squarePaymentId       String?         @unique
+  receiptUrl            String?
   // Browser-generated key that stops a double-submitted checkout from creating two orders
-  checkoutKey     String?       @unique
-  adminNotes      String?
-  trackingNumber  String?
-  customerId      String?
-  customer        Customer?     @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  checkoutKey           String?         @unique
+  adminNotes            String?
+  trackingNumber        String?
+  customerId            String?
+  customer              Customer?       @relation(fields: [customerId], references: [id], onDelete: SetNull)
   // Class bookings only: the date, start time ("14:30") and place the owner confirms
-  classStatus     ClassStatus   @default(REQUESTED)
-  classDate       DateTime?     @db.Date
-  classTime       String?
-  classLocation   String?
-  items           OrderItem[]
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  classStatus           ClassStatus     @default(REQUESTED)
+  classDate             DateTime?       @db.Date
+  classTime             String?
+  classLocation         String?
+  items                 OrderItem[]
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
 
   @@index([customerId])
 }
 
 model OrderItem {
-  id             String  @id @default(cuid())
+  id             String      @id @default(cuid())
   orderId        String
-  order          Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  order          Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
   productId      String?
   productName    String
   kind           ProductKind @default(PRODUCT)
   unitPriceCents Int
   quantity       Int
   // { label: value } answers to the product's custom fields
-  customization  Json    @default("{}")
+  customization  Json        @default("{}")
   // [{ name, priceCents, quantity }]
-  addOns         Json    @default("[]")
+  addOns         Json        @default("[]")
   lineTotalCents Int
 }
 

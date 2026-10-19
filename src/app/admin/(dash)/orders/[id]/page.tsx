@@ -86,7 +86,7 @@ export default async function OrderDetail({ params, searchParams }: { params: Pr
             {addr ? <span className="whitespace-pre-line">{`${addr.address1}${addr.address2 ? `, ${addr.address2}` : ""}\n${addr.city}, ${addr.state} ${addr.zip}`}</span> : null}
             {order.customerNote ? <p className="mt-2 rounded-lg bg-blush p-3"><strong>Note:</strong> {order.customerNote}</p> : null}
             <span className="mt-2 text-xs text-mute">Placed {order.createdAt.toLocaleString()}{order.customerId ? " · Has a My account login" : ""}</span>
-            {order.receiptUrl ? <a href={order.receiptUrl} target="_blank" rel="noreferrer" className="text-xs text-pink-deep underline">Square receipt</a> : null}
+            {order.receiptUrl ? <a href={order.receiptUrl} target="_blank" rel="noreferrer" className="text-xs text-pink-deep underline">{order.paymentProvider === "STRIPE" ? "Stripe" : "Square"} receipt</a> : null}
           </section>
 
 {hasClass ? (
@@ -136,8 +136,8 @@ export default async function OrderDetail({ params, searchParams }: { params: Pr
             </form>
           ) : null}
 
-          {order.squarePaymentId && order.refundedCents < order.totalCents ? (
-            <RefundForm orderId={order.id} maxCents={order.totalCents - order.refundedCents} />
+          {(order.squarePaymentId || order.stripePaymentIntentId) && order.refundedCents < order.totalCents ? (
+            <RefundForm orderId={order.id} maxCents={order.totalCents - order.refundedCents} processor={order.paymentProvider === "STRIPE" ? "Stripe" : "Square"} />
           ) : null}
         </div>
       </div>

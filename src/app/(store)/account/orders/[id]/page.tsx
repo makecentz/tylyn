@@ -79,7 +79,7 @@ export default async function AccountOrder({ params }: { params: Promise<{ id: s
         </section>
 
         <div className="flex flex-wrap gap-3">
-          {order.receiptUrl ? <a href={order.receiptUrl} target="_blank" rel="noreferrer" className="btn btn-dark">View Square receipt</a> : null}
+          {order.receiptUrl ? <a href={order.receiptUrl} target="_blank" rel="noreferrer" className="btn btn-dark">View receipt</a> : null}
           <Link href="/contact" className="btn btn-outline">Questions? Contact us</Link>
         </div>
       </div>
