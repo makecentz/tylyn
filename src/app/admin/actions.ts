@@ -4,8 +4,9 @@ import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import type { OrderStatus, ProductKind, QuoteStatus } from "@prisma/client";
+import type { ClassStatus, OrderStatus, ProductKind, QuoteStatus } from "@prisma/client";
 import { requireAdmin } from "@/lib/auth";
+import { classStatuses } from "@/lib/classes";
 import { saveContent, type ContentKey, type SiteContentMap } from "@/lib/content";
 import { customFieldSchema } from "@/lib/custom-fields";
 import { db } from "@/lib/db";
@@ -27,6 +28,30 @@ export async function updateOrder(formData: FormData) {
     data: { status, adminNotes: String(formData.get("adminNotes") ?? "").slice(0, 5000) || null },
   });
   revalidatePath("/admin/orders");
+  redirect(`/admin/orders/${id}?saved=1`);
+}
+
+export async function updateClassBooking(formData: FormData) {
+  await requireAdmin();
+  const id = String(formData.get("id"));
+  let classStatus = String(formData.get("classStatus")) as ClassStatus;
+  if (!classStatuses.includes(classStatus as (typeof classStatuses)[number])) throw new Error("Invalid status");
+  const date = String(formData.get("classDate") ?? "");
+  const time = String(formData.get("classTime") ?? "");
+  const classDate = /^\d{4}-\d{2}-\d{2}$/.test(date) ? new Date(`${date}T00:00:00Z`) : null;
+  // Picking a date is scheduling the class, even if the status menu was left alone.
+  if (classDate && classStatus === "REQUESTED") classStatus = "SCHEDULED";
+  await db.order.update({
+    where: { id },
+    data: {
+      classStatus,
+      classDate,
+      classTime: /^\d{2}:\d{2}$/.test(time) ? time : null,
+      classLocation: String(formData.get("classLocation") ?? "").trim().slice(0, 300) || null,
+      ...(formData.has("adminNotes") ? { adminNotes: String(formData.get("adminNotes")).slice(0, 5000) || null } : {}),
+    },
+  });
+  revalidatePath("/admin/classes");
   redirect(`/admin/orders/${id}?saved=1`);
 }
 

@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 
 const nav = [
   { href: "/admin/orders", label: "Orders" },
-  { href: "/admin/orders?type=classes", label: "Class bookings" },
+  { href: "/admin/classes", label: "Class bookings" },
   { href: "/admin/quotes", label: "Quote requests" },
   { href: "/admin/products", label: "Products and services" },
   { href: "/admin/addons", label: "Add-ons and collections" },
@@ -19,11 +19,12 @@ const nav = [
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const admin = await requireAdmin();
-  const [newCount, newQuotes] = await Promise.all([
-    db.order.count({ where: { status: "NEW", paymentStatus: "PAID" } }),
+  const [newCount, newClasses, newQuotes] = await Promise.all([
+    db.order.count({ where: { status: "NEW", paymentStatus: "PAID", items: { some: { kind: "PRODUCT" } } } }),
+    db.order.count({ where: { classStatus: "REQUESTED", paymentStatus: "PAID", items: { some: { kind: "SERVICE" } } } }),
     db.quoteRequest.count({ where: { status: "NEW" } }),
   ]);
-  const badges: Record<string, number> = { Orders: newCount, "Quote requests": newQuotes };
+  const badges: Record<string, number> = { Orders: newCount, "Class bookings": newClasses, "Quote requests": newQuotes };
 
   return (
     <div className="flex min-h-screen flex-wrap bg-[#F7F3F5]">

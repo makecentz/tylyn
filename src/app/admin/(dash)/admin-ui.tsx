@@ -1,4 +1,4 @@
-import type { OrderStatus, PaymentStatus } from "@prisma/client";
+import type { ClassStatus, OrderStatus, PaymentStatus } from "@prisma/client";
 
 export const statusLabels: Record<OrderStatus, string> = {
   NEW: "New, needs proof",
@@ -22,6 +22,26 @@ const statusColors: Record<OrderStatus, string> = {
 
 export function StatusPill({ status }: { status: OrderStatus }) {
   return <span className={`inline-block rounded-full px-3 py-1 text-xs font-bold ${statusColors[status]}`}>{statusLabels[status]}</span>;
+}
+
+export const classStatusLabels: Record<ClassStatus, string> = {
+  REQUESTED: "Needs scheduling",
+  SCHEDULED: "Scheduled",
+  COMPLETED: "Class completed",
+  NO_SHOW: "No-show",
+  CANCELLED: "Cancelled",
+};
+
+const classStatusColors: Record<ClassStatus, string> = {
+  REQUESTED: "bg-pink text-ink",
+  SCHEDULED: "bg-[#D9F5E6] text-[#0F5132]",
+  COMPLETED: "bg-[#EEEAEC] text-[#4A3F45]",
+  NO_SHOW: "bg-[#FFF1C7] text-[#5C4500]",
+  CANCELLED: "bg-[#EEEAEC] text-[#4A3F45] line-through",
+};
+
+export function ClassStatusPill({ status }: { status: ClassStatus }) {
+  return <span className={`inline-block rounded-full px-3 py-1 text-xs font-bold ${classStatusColors[status]}`}>{classStatusLabels[status]}</span>;
 }
 
 const paymentLabels: Record<PaymentStatus, string> = {

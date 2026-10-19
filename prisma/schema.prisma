@@ -24,6 +24,15 @@ enum OrderStatus {
   CANCELLED
 }
 
+// Where a 1-on-1 class booking stands, tracked separately from the favor order statuses.
+enum ClassStatus {
+  REQUESTED
+  SCHEDULED
+  COMPLETED
+  NO_SHOW
+  CANCELLED
+}
+
 enum PaymentStatus {
   PENDING
   PAID
@@ -104,6 +113,11 @@ model Order {
   // Browser-generated key that stops a double-submitted checkout from creating two orders
   checkoutKey     String?       @unique
   adminNotes      String?
+  // Class bookings only: the date, start time ("14:30") and place the owner confirms
+  classStatus     ClassStatus   @default(REQUESTED)
+  classDate       DateTime?     @db.Date
+  classTime       String?
+  classLocation   String?
   items           OrderItem[]
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
