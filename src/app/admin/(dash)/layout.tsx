@@ -3,7 +3,6 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { requireAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { logout } from "../actions";
 
 export const metadata: Metadata = { title: "Admin", robots: { index: false } };
 export const dynamic = "force-dynamic";
@@ -40,7 +39,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         </nav>
         <div className="mt-auto flex flex-col gap-2 pt-6 text-xs text-[#A99FA5]">
           <span className="truncate">Signed in as {admin.email}</span>
-          <form action={logout}>
+          <form method="post" action="/api/admin/logout">
             <button className="min-h-10 font-semibold text-[#FFD1E8] underline">Sign out</button>
           </form>
         </div>
