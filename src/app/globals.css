@@ -1,0 +1,102 @@
+@import "tailwindcss";
+
+@theme {
+  --color-ink: #0e0b0d;
+  --color-ink-soft: #18131a;
+  --color-pink: #ff1493;
+  --color-pink-deep: #c2106d;
+  --color-pink-light: #ff4fa8;
+  --color-blush: #fff4fa;
+  --color-gold: #d4af37;
+  --color-gold-deep: #9a7a14;
+  --color-mute: #6b5e65;
+  --color-line: #ebdde4;
+  --font-sans: var(--font-montserrat), system-ui, sans-serif;
+  --font-serif: var(--font-playfair), Georgia, serif;
+  --font-script: var(--font-great-vibes), cursive;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: #ffffff;
+  color: var(--color-ink);
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 48px;
+  padding: 0 1.75rem;
+  border-radius: 9999px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  transition: background-color 0.15s, color 0.15s, border-color 0.15s;
+}
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.btn-pink {
+  background: var(--color-pink);
+  color: var(--color-ink);
+}
+.btn-pink:hover:not(:disabled) {
+  background: var(--color-pink-light);
+}
+.btn-gold {
+  background: var(--color-gold);
+  color: var(--color-ink);
+}
+.btn-outline-gold {
+  border: 1.5px solid var(--color-gold);
+  color: var(--color-gold);
+}
+.btn-dark {
+  background: var(--color-ink);
+  color: #fff;
+}
+.btn-dark:hover:not(:disabled) {
+  background: #2a1d25;
+}
+.btn-outline {
+  border: 1.5px solid var(--color-ink);
+  color: var(--color-ink);
+  background: #fff;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+.input {
+  min-height: 46px;
+  padding: 0 0.875rem;
+  border: 1.5px solid #d9c7d0;
+  border-radius: 10px;
+  font-weight: 400;
+  font-size: 0.95rem;
+  background: #fff;
+  color: var(--color-ink);
+  width: 100%;
+}
+textarea.input {
+  padding: 0.75rem 0.875rem;
+  min-height: 96px;
+}
+.input:focus {
+  outline: 2px solid var(--color-pink);
+  outline-offset: 1px;
+}
+.card {
+  background: #fff;
+  border-radius: 16px;
+  padding: 1.5rem;
+}
