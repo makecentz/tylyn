@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { InstagramIcon, MailIcon, PhoneIcon, PinIcon, ClockIcon } from "@/components/icons";
+import { QuoteSection } from "@/components/QuoteSection";
 import { getAllContent } from "@/lib/content";
 
 export const dynamic = "force-dynamic";
@@ -20,6 +21,7 @@ export default async function ContactPage({ searchParams }: { searchParams: Prom
   ].filter(Boolean) as { Icon: typeof PhoneIcon; label: string; value: string; href?: string }[];
 
   return (
+    <>
     <div className="mx-auto flex max-w-[820px] flex-col gap-8 px-4 pb-24 pt-12 sm:px-6">
       <div className="flex flex-col gap-2">
         <span className="font-script text-4xl text-pink-deep">Let&apos;s create something</span>
@@ -37,6 +39,9 @@ export default async function ContactPage({ searchParams }: { searchParams: Prom
           </li>
         ))}
       </ul>
+      <a href="#quote" className="btn btn-outline self-start">Or request a quote online ↓</a>
     </div>
+    <QuoteSection />
+    </>
   );
 }

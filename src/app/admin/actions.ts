@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import type { OrderStatus, ProductKind } from "@prisma/client";
+import type { OrderStatus, ProductKind, QuoteStatus } from "@prisma/client";
 import { requireAdmin } from "@/lib/auth";
 import { saveContent, type ContentKey, type SiteContentMap } from "@/lib/content";
 import { customFieldSchema } from "@/lib/custom-fields";
@@ -57,6 +57,24 @@ export async function refundOrder(_prev: { error?: string; ok?: string } | null,
   });
   revalidatePath(`/admin/orders/${id}`);
   return { ok: `Refunded $${(cents / 100).toFixed(2)} through Square.` };
+}
+
+/* ---------- Quote requests ---------- */
+
+const quoteStatuses = ["NEW", "CONTACTED", "BOOKED", "CLOSED"] as const;
+
+export async function updateQuote(formData: FormData) {
+  await requireAdmin();
+  const id = String(formData.get("id"));
+  const status = String(formData.get("status")) as QuoteStatus;
+  if (!quoteStatuses.includes(status as (typeof quoteStatuses)[number])) throw new Error("Invalid status");
+  await db.quoteRequest.update({
+    where: { id },
+    data: { status, adminNotes: String(formData.get("adminNotes") ?? "").slice(0, 5000) || null },
+  });
+  revalidatePath("/admin/quotes");
+  const back = encodeURIComponent(String(formData.get("back") ?? "open"));
+  redirect(`/admin/quotes?status=${back}&saved=1`);
 }
 
 /* ---------- Images ---------- */

@@ -1,6 +1,6 @@
 import { Resend } from "resend";
 import { formatCents } from "./money";
-import type { Order, OrderItem } from "@prisma/client";
+import type { Order, OrderItem, QuoteRequest } from "@prisma/client";
 
 type OrderWithItems = Order & { items: OrderItem[] };
 
@@ -49,5 +49,36 @@ export async function sendOrderEmails(order: OrderWithItems) {
     }
   } catch (err) {
     console.error("Order email failed", err);
+  }
+}
+
+/** Tells the owner about a new quote request. Silently skips when email isn't configured. */
+export async function sendQuoteEmail(q: QuoteRequest) {
+  const key = process.env.RESEND_API_KEY;
+  const from = process.env.EMAIL_FROM;
+  const to = process.env.OWNER_NOTIFY_EMAIL;
+  if (!key || !from || !to) return;
+  const site = process.env.NEXT_PUBLIC_SITE_URL ?? "";
+  const rows = [
+    ["Name", q.name],
+    ["Email", q.email],
+    ["Phone", q.phone],
+    ["Event date", q.eventDate ? q.eventDate.toISOString().slice(0, 10) : "Not given"],
+    ["Services", q.services.join(", ")],
+    ["Guests", q.guestCount ? String(q.guestCount) : "Not given"],
+    ["Details", q.details || "None"],
+  ]
+    .map(([k, v]) => `<tr><td style="padding:4px 12px 4px 0;color:#555;vertical-align:top">${k}</td><td style="padding:4px 0;white-space:pre-line">${escapeHtml(v)}</td></tr>`)
+    .join("");
+  try {
+    await new Resend(key).emails.send({
+      from,
+      to,
+      replyTo: q.email,
+      subject: `New quote request from ${q.name}`,
+      html: `<div style="font-family:Arial,sans-serif;max-width:560px;margin:auto"><h2 style="color:#C2106D">New quote request</h2><table>${rows}</table><p><a href="${site}/admin/quotes">Open quotes in admin</a></p></div>`,
+    });
+  } catch (err) {
+    console.error("Quote email failed", err);
   }
 }

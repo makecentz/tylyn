@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { ProductCard } from "@/components/ProductCard";
+import { QuoteSection } from "@/components/QuoteSection";
 import { getAllContent } from "@/lib/content";
 import { db } from "@/lib/db";
 
@@ -121,6 +122,8 @@ export default async function HomePage() {
           </div>
         </section>
       ) : null}
+
+      <QuoteSection />
 
       {about.body ? (
         <section id="about" aria-labelledby="about-title" className="bg-white">

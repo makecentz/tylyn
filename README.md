@@ -3,6 +3,7 @@
 Website and online store for Tylyn Tingz Creations: custom party favors, party packages and 1-on-1 craft classes. Customers personalize an item, pay with Square, and the owner manages everything from `/admin`.
 
 - **Storefront:** home, shop with collections, product pages with custom questions and photo upload, cart, Square checkout (card, Apple Pay, Google Pay, Cash App Pay), order confirmation, gallery, policies and FAQs, contact.
+- **Quote requests:** a quote form (event date, services, guest count, details) on the home page and the contact page. Requests land under **Admin → Quote requests**, and the owner gets an email when email is set up.
 - **Admin (`/admin`):** orders and class bookings with status tracking, private notes and Square refunds; products and services (prices, photos, the questions customers answer, add-ons, visibility); add-ons and collections; every piece of site copy (announcement bar, home page, gallery, policies, FAQs, contact and social links).
 
 Built with Next.js 15, Prisma and Postgres, Tailwind 4 and the Square Node SDK.
@@ -58,7 +59,7 @@ Payments show up in the Square Dashboard like any other sale, with the customer'
 
 ## Order emails (optional)
 
-With `RESEND_API_KEY`, `EMAIL_FROM` and `OWNER_NOTIFY_EMAIL` set, the customer gets a receipt and the owner gets a new-order email. Verify the sending domain at resend.com first. Without these settings, orders still appear in the admin and in Square.
+With `RESEND_API_KEY`, `EMAIL_FROM` and `OWNER_NOTIFY_EMAIL` set, the customer gets a receipt and the owner gets a new-order email and a new-quote email. Verify the sending domain at resend.com first. Without these settings, orders still appear in the admin and in Square.
 
 ## How checkout stays safe
 
