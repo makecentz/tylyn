@@ -1,30 +1,18 @@
 import { SquareClient, SquareEnvironment } from "square";
+import type { PaymentSettings } from "./payment-settings";
 
-export const isSquareProduction = process.env.SQUARE_ENVIRONMENT === "production";
+const clients = new Map<string, SquareClient>();
 
-export function squareConfigured(): boolean {
-  return Boolean(
-    process.env.SQUARE_ACCESS_TOKEN &&
-      process.env.NEXT_PUBLIC_SQUARE_APPLICATION_ID &&
-      process.env.NEXT_PUBLIC_SQUARE_LOCATION_ID,
-  );
-}
-
-let client: SquareClient | null = null;
-
-export function square(): SquareClient {
-  if (!process.env.SQUARE_ACCESS_TOKEN) throw new Error("SQUARE_ACCESS_TOKEN is not set");
-  client ??= new SquareClient({
-    token: process.env.SQUARE_ACCESS_TOKEN,
-    environment: isSquareProduction ? SquareEnvironment.Production : SquareEnvironment.Sandbox,
-  });
+export function square(settings: PaymentSettings): SquareClient {
+  const { accessToken, production } = settings.square;
+  if (!accessToken) throw new Error("Square isn't set up");
+  const cacheKey = `${production}:${accessToken}`;
+  let client = clients.get(cacheKey);
+  if (!client) {
+    client = new SquareClient({ token: accessToken, environment: production ? SquareEnvironment.Production : SquareEnvironment.Sandbox });
+    clients.set(cacheKey, client);
+  }
   return client;
-}
-
-export function squareLocationId(): string {
-  const id = process.env.NEXT_PUBLIC_SQUARE_LOCATION_ID;
-  if (!id) throw new Error("NEXT_PUBLIC_SQUARE_LOCATION_ID is not set");
-  return id;
 }
 
 export function money(cents: number) {

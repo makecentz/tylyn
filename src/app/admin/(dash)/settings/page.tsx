@@ -1,4 +1,4 @@
-import { isSquareProduction, squareConfigured } from "@/lib/square";
+import Link from "next/link";
 import { PageTitle } from "../admin-ui";
 
 function Row({ ok, label, help }: { ok: boolean; label: string; help: string }) {
@@ -17,16 +17,14 @@ export default function SettingsPage() {
   const env = process.env;
   return (
     <>
-      <PageTitle>Settings and Square</PageTitle>
+      <PageTitle>Settings</PageTitle>
       <div className="card max-w-3xl">
         <p className="mb-3 text-sm text-mute">These are set as environment variables in your hosting dashboard (Vercel → Project → Settings → Environment Variables). See the README for step-by-step setup.</p>
         <ul>
-          <Row ok={squareConfigured()} label={`Square payments (${isSquareProduction ? "live" : "sandbox test mode"})`} help="SQUARE_ACCESS_TOKEN, NEXT_PUBLIC_SQUARE_APPLICATION_ID, NEXT_PUBLIC_SQUARE_LOCATION_ID, SQUARE_ENVIRONMENT" />
-          <Row ok={Boolean(env.SQUARE_WEBHOOK_SIGNATURE_KEY && env.SQUARE_WEBHOOK_URL)} label="Square webhook (keeps refunds made in Square in sync)" help="SQUARE_WEBHOOK_SIGNATURE_KEY and SQUARE_WEBHOOK_URL" />
           <Row ok={Boolean(env.BLOB_READ_WRITE_TOKEN)} label="Photo uploads" help="BLOB_READ_WRITE_TOKEN from a Vercel Blob store" />
           <Row ok={Boolean(env.RESEND_API_KEY && env.EMAIL_FROM)} label="Order emails" help="RESEND_API_KEY, EMAIL_FROM and OWNER_NOTIFY_EMAIL" />
-          <Row ok={Boolean(env.SALES_TAX_PERCENT)} label={`Sales tax${env.SALES_TAX_PERCENT ? ` (${env.SALES_TAX_PERCENT}%)` : ""}`} help="SALES_TAX_PERCENT, leave empty for no tax" />
         </ul>
+        <p className="mt-3 text-sm">Payment processor keys and sales tax are on the <Link href="/admin/payments" className="font-semibold text-pink-deep underline">Payments</Link> page.</p>
       </div>
     </>
   );

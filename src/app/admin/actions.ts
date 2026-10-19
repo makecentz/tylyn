@@ -11,7 +11,9 @@ import { saveContent, type ContentKey, type SiteContentMap } from "@/lib/content
 import { customFieldSchema } from "@/lib/custom-fields";
 import { db } from "@/lib/db";
 import { parseDollars } from "@/lib/money";
-import { money, square, squareConfigured, squareErrorMessage } from "@/lib/square";
+import { getPaymentSettings } from "@/lib/payment-settings";
+import { money, square, squareErrorMessage } from "@/lib/square";
+import { stripe, stripeErrorMessage } from "@/lib/stripe";
 import { UploadError, saveImage } from "@/lib/upload";
 
 /* ---------- Orders ---------- */
@@ -63,21 +65,33 @@ export async function refundOrder(_prev: { error?: string; ok?: string } | null,
   await requireAdmin();
   const id = String(formData.get("id"));
   const order = await db.order.findUnique({ where: { id } });
-  if (!order?.squarePaymentId) return { error: "This order has no Square payment to refund." };
+  const viaStripe = order?.paymentProvider === "STRIPE";
+  const processor = viaStripe ? "Stripe" : "Square";
+  if (!order || !(viaStripe ? order.stripePaymentIntentId : order.squarePaymentId)) return { error: `This order has no ${processor} payment to refund.` };
   const cents = parseDollars(String(formData.get("amount") ?? ""));
   const remaining = order.totalCents - order.refundedCents;
   if (!cents || cents <= 0) return { error: "Enter a refund amount." };
   if (cents > remaining) return { error: `You can refund at most $${(remaining / 100).toFixed(2)}.` };
-  if (!squareConfigured()) return { error: "Square isn't configured." };
+  const settings = await getPaymentSettings();
+  const reason = String(formData.get("reason") ?? "").slice(0, 192) || "Refund from Tylyn Tingz Creations";
   try {
-    await square().refunds.refundPayment({
-      idempotencyKey: randomUUID(),
-      paymentId: order.squarePaymentId,
-      amountMoney: money(cents),
-      reason: String(formData.get("reason") ?? "").slice(0, 192) || "Refund from Tylyn Tingz Creations",
-    });
+    if (viaStripe) {
+      if (!settings.stripe.secretKey) return { error: "Stripe isn't set up. Add the secret key under Payments." };
+      await stripe(settings).refunds.create(
+        { payment_intent: order.stripePaymentIntentId!, amount: cents, metadata: { reason } },
+        { idempotencyKey: `refund-${order.id}-${order.refundedCents}-${cents}` },
+      );
+    } else {
+      if (!settings.square.accessToken) return { error: "Square isn't set up. Add the access token under Payments." };
+      await square(settings).refunds.refundPayment({
+        idempotencyKey: randomUUID(),
+        paymentId: order.squarePaymentId!,
+        amountMoney: money(cents),
+        reason,
+      });
+    }
   } catch (e) {
-    return { error: squareErrorMessage(e) };
+    return { error: viaStripe ? stripeErrorMessage(e) : squareErrorMessage(e) };
   }
   const refundedCents = order.refundedCents + cents;
   await db.order.update({
@@ -85,7 +99,7 @@ export async function refundOrder(_prev: { error?: string; ok?: string } | null,
     data: { refundedCents, paymentStatus: refundedCents >= order.totalCents ? "REFUNDED" : "PARTIALLY_REFUNDED" },
   });
   revalidatePath(`/admin/orders/${id}`);
-  return { ok: `Refunded $${(cents / 100).toFixed(2)} through Square.` };
+  return { ok: `Refunded $${(cents / 100).toFixed(2)} through ${processor}.` };
 }
 
 /* ---------- Quote requests ---------- */

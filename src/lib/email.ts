@@ -35,7 +35,7 @@ export async function sendOrderEmails(order: OrderWithItems) {
       <p>Order #${order.number}. We'll email a design proof before we start making your items.</p>
       <table style="width:100%;border-collapse:collapse">${itemsHtml(order)}</table>
       <p style="text-align:right"><strong>Total: ${formatCents(order.totalCents)}</strong></p>
-      ${order.receiptUrl ? `<p><a href="${order.receiptUrl}">View your Square receipt</a></p>` : ""}
+      ${order.receiptUrl ? `<p><a href="${order.receiptUrl}">View your payment receipt</a></p>` : ""}
     </div>`;
   try {
     await resend.emails.send({ from, to: order.email, subject: `Your Tylyn Tingz Creations order #${order.number}`, html: body });

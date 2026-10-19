@@ -5,11 +5,15 @@ import { cartItemSchema } from "@/lib/cart-types";
 import { addressSchema, cookieForCustomer, getCustomer, normalizeEmail } from "@/lib/customer-auth";
 import { db } from "@/lib/db";
 import { sendOrderEmails } from "@/lib/email";
+import { createPendingAccount } from "@/lib/order-payment";
+import { getPaymentSettings, paymentsReady, siteUrl, type PaymentSettings } from "@/lib/payment-settings";
 import { PricingError, priceCart } from "@/lib/pricing";
-import { money, square, squareConfigured, squareErrorMessage, squareLocationId } from "@/lib/square";
+import { money, square, squareErrorMessage } from "@/lib/square";
+import { stripe, stripeErrorMessage } from "@/lib/stripe";
 
 const bodySchema = z.object({
-  sourceId: z.string().min(1),
+  // Square only: the card or wallet token from Square's payment form
+  sourceId: z.string().min(1).optional(),
   idempotencyKey: z.string().min(8).max(45),
   expectedSubtotalCents: z.number().int(),
   fulfillment: z.enum(["PICKUP", "SHIPPING"]),
@@ -25,13 +29,16 @@ const bodySchema = z.object({
   accountPassword: z.string().min(8).max(200).optional(),
   items: z.array(cartItemSchema).min(1).max(50),
 });
+type Body = z.infer<typeof bodySchema>;
+type Priced = Awaited<ReturnType<typeof priceCart>>;
 
 function truncate(s: string, n: number) {
   return s.length > n ? s.slice(0, n - 1) + "…" : s;
 }
 
 export async function POST(req: Request) {
-  if (!squareConfigured()) {
+  const settings = await getPaymentSettings();
+  if (!paymentsReady(settings)) {
     return NextResponse.json({ error: "Online payments aren't set up yet." }, { status: 503 });
   }
 
@@ -40,6 +47,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Some checkout details are missing or invalid. Please check the form." }, { status: 400 });
   }
   const body = parsed.data;
+  if (settings.provider === "square" && !body.sourceId) {
+    return NextResponse.json({ error: "Please enter your payment details." }, { status: 400 });
+  }
   const signedIn = await getCustomer();
   const email = signedIn?.email ?? normalizeEmail(body.customer.email);
   if (!signedIn && body.accountPassword && (await db.customer.findUnique({ where: { email } }))) {
@@ -50,7 +60,7 @@ export async function POST(req: Request) {
   }
 
   // Re-price everything from the database; the browser's numbers are only used to catch stale carts.
-  let priced;
+  let priced: Priced;
   try {
     priced = await priceCart(body.items, body.fulfillment);
   } catch (e) {
@@ -68,6 +78,10 @@ export async function POST(req: Request) {
   const already = await db.order.findUnique({ where: { checkoutKey: body.idempotencyKey } });
   if (already) {
     if (already.paymentStatus === "PAID") return NextResponse.json({ orderId: already.id });
+    if (already.stripeSessionId) {
+      const session = await stripe(settings).checkout.sessions.retrieve(already.stripeSessionId);
+      if (session.status === "open" && session.url) return NextResponse.json({ redirectUrl: session.url });
+    }
     return NextResponse.json({ error: "Your payment is still processing. Please wait a moment." }, { status: 409 });
   }
 
@@ -79,7 +93,9 @@ export async function POST(req: Request) {
       fulfillment: body.fulfillment,
       shippingAddress: body.shippingAddress,
       customerId: signedIn?.id,
+      pendingAccountHash: !signedIn && body.accountPassword ? await bcrypt.hash(body.accountPassword, 10) : null,
       customerNote: body.note,
+      paymentProvider: settings.provider === "stripe" ? "STRIPE" : "SQUARE",
       subtotalCents: priced.subtotalCents,
       taxCents: priced.taxCents,
       shippingCents: priced.shippingCents,
@@ -100,9 +116,80 @@ export async function POST(req: Request) {
     },
   });
 
+  if (signedIn) {
+    // Remember their details for next time if the account doesn't have them yet.
+    await db.customer
+      .update({ where: { id: signedIn.id }, data: { phone: signedIn.phone || body.customer.phone, address: signedIn.address ?? body.shippingAddress } })
+      .catch(() => {});
+  }
+
+  return settings.provider === "stripe"
+    ? startStripeCheckout(req, settings, body, priced, order.id, order.number, email)
+    : chargeWithSquare(settings, body, priced, order.id, order.number);
+}
+
+/** Sends the shopper to Stripe's hosted checkout page, which offers card, wallets, Klarna and the rest. */
+async function startStripeCheckout(req: Request, settings: PaymentSettings, body: Body, priced: Priced, orderId: string, orderNumber: number, email: string) {
+  const origin = new URL(req.url).origin || siteUrl();
+  const lineItems = priced.lines.flatMap((l) => {
+    const description = Object.entries(l.customization)
+      .filter(([, v]) => !/^(https?:\/\/|\/uploads\/)/.test(v))
+      .map(([k, v]) => `${k}: ${v}`)
+      .join(" · ");
+    return [
+      {
+        quantity: l.quantity,
+        price_data: {
+          currency: "usd",
+          unit_amount: l.unitPriceCents,
+          product_data: { name: truncate(l.productName, 250), ...(description ? { description: truncate(description, 500) } : {}) },
+        },
+      },
+      ...l.addOns.map((a) => ({
+        quantity: a.quantity,
+        price_data: { currency: "usd", unit_amount: a.priceCents, product_data: { name: truncate(`${a.name} (add-on for ${l.productName})`, 250) } },
+      })),
+    ];
+  });
+  if (priced.shippingCents > 0) {
+    lineItems.push({ quantity: 1, price_data: { currency: "usd", unit_amount: priced.shippingCents, product_data: { name: "Shipping" } } });
+  }
+  if (priced.taxCents > 0) {
+    lineItems.push({ quantity: 1, price_data: { currency: "usd", unit_amount: priced.taxCents, product_data: { name: `Sales tax (${priced.taxPercent}%)` } } });
+  }
+
   try {
-    const client = square();
-    const locationId = squareLocationId();
+    const session = await stripe(settings).checkout.sessions.create(
+      {
+        mode: "payment",
+        line_items: lineItems,
+        customer_email: email,
+        client_reference_id: orderId,
+        metadata: { orderId, orderNumber: String(orderNumber) },
+        payment_intent_data: {
+          description: `Tylyn Tingz order #${orderNumber}`,
+          metadata: { orderId, orderNumber: String(orderNumber) },
+        },
+        // Stripe checks back here first so the order shows as paid right away, even before the webhook lands.
+        success_url: `${origin}/api/stripe/return?session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${origin}/checkout?canceled=1`,
+        expires_at: Math.floor(Date.now() / 1000) + 60 * 60,
+      },
+      { idempotencyKey: `${body.idempotencyKey}-session` },
+    );
+    await db.order.update({ where: { id: orderId }, data: { stripeSessionId: session.id } });
+    return NextResponse.json({ redirectUrl: session.url });
+  } catch (err) {
+    console.error("Stripe checkout failed", err);
+    await db.order.delete({ where: { id: orderId } }).catch(() => {});
+    return NextResponse.json({ error: stripeErrorMessage(err) }, { status: 402 });
+  }
+}
+
+async function chargeWithSquare(settings: PaymentSettings, body: Body, priced: Priced, orderId: string, orderNumber: number) {
+  try {
+    const client = square(settings);
+    const locationId = settings.square.locationId;
 
     const lineItems = priced.lines.flatMap((l) => {
       const note = Object.entries(l.customization)
@@ -118,7 +205,7 @@ export async function POST(req: Request) {
       idempotencyKey: `${body.idempotencyKey}-order`,
       order: {
         locationId,
-        referenceId: `TT-${order.number}`,
+        referenceId: `TT-${orderNumber}`,
         lineItems,
         taxes: priced.taxPercent > 0 ? [{ uid: "sales-tax", name: "Sales tax", percentage: String(priced.taxPercent), scope: "ORDER" }] : undefined,
         serviceCharges:
@@ -133,13 +220,13 @@ export async function POST(req: Request) {
 
     const payment = await client.payments.create({
       idempotencyKey: body.idempotencyKey,
-      sourceId: body.sourceId,
+      sourceId: body.sourceId!,
       amountMoney: money(chargeCents),
       orderId: sqOrder.id,
       locationId,
-      referenceId: `TT-${order.number}`,
+      referenceId: `TT-${orderNumber}`,
       buyerEmailAddress: body.customer.email,
-      note: truncate(`Tylyn Tingz order #${order.number} for ${body.customer.name}`, 500),
+      note: truncate(`Tylyn Tingz order #${orderNumber} for ${body.customer.name}`, 500),
     });
     const p = payment.payment;
     if (!p?.id || (p.status !== "COMPLETED" && p.status !== "APPROVED")) {
@@ -147,7 +234,7 @@ export async function POST(req: Request) {
     }
 
     const paid = await db.order.update({
-      where: { id: order.id },
+      where: { id: orderId },
       data: {
         paymentStatus: "PAID",
         squareOrderId: sqOrder.id,
@@ -158,38 +245,16 @@ export async function POST(req: Request) {
       },
       include: { items: true },
     });
+    const customerId = await createPendingAccount(paid.id);
     await sendOrderEmails(paid);
 
     const res = NextResponse.json({ orderId: paid.id });
-    try {
-      if (signedIn) {
-        // Remember their details for next time if the account doesn't have them yet.
-        await db.customer.update({
-          where: { id: signedIn.id },
-          data: { phone: signedIn.phone || body.customer.phone, address: signedIn.address ?? body.shippingAddress },
-        });
-      } else if (body.accountPassword) {
-        const customer = await db.customer.create({
-          data: {
-            email,
-            name: body.customer.name,
-            phone: body.customer.phone,
-            address: body.shippingAddress,
-            passwordHash: await bcrypt.hash(body.accountPassword, 10),
-            orders: { connect: { id: paid.id } },
-          },
-        });
-        res.cookies.set(await cookieForCustomer(customer.id));
-      }
-    } catch (e) {
-      // The payment already went through, so an account problem must not turn this into an error.
-      console.error("Couldn't save the buyer's account", e);
-    }
+    if (customerId) res.cookies.set(await cookieForCustomer(customerId));
     return res;
   } catch (err) {
     console.error("Checkout failed", err);
     // Nothing was charged, so drop the unpaid order to keep the admin list clean.
-    await db.order.delete({ where: { id: order.id } }).catch(() => {});
+    await db.order.delete({ where: { id: orderId } }).catch(() => {});
     return NextResponse.json({ error: squareErrorMessage(err) }, { status: 402 });
   }
 }

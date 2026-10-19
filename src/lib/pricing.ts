@@ -1,5 +1,6 @@
 import { getAllContent } from "./content";
 import { db } from "./db";
+import { getPaymentSettings } from "./payment-settings";
 import { parseCustomFields } from "./custom-fields";
 import type { CartItem } from "./cart-types";
 import type { ProductKind } from "@prisma/client";
@@ -67,7 +68,7 @@ export async function priceCart(items: CartItem[], fulfillment: "PICKUP" | "SHIP
   });
 
   const subtotalCents = lines.reduce((s, l) => s + l.lineTotalCents, 0);
-  const taxPercent = parseFloat(process.env.SALES_TAX_PERCENT || "0") || 0;
+  const { taxPercent } = await getPaymentSettings();
   const taxCents = Math.round((subtotalCents * taxPercent) / 100);
   let shippingCents = 0;
   if (fulfillment === "SHIPPING") {
