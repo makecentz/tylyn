@@ -82,9 +82,10 @@ export default async function OrderDetail({ params, searchParams }: { params: Pr
             <a href={`mailto:${order.email}?subject=${encodeURIComponent(`Your Tylyn Tingz order #${order.number}`)}`} className="text-pink-deep underline">{order.email}</a>
             <a href={`tel:${order.phone}`} className="text-pink-deep underline">{order.phone}</a>
             {hasProducts ? <span className="mt-2 font-semibold">{order.fulfillment === "SHIPPING" ? "Ship to" : "Local pickup"}</span> : null}
+            {addr && !(hasProducts && order.fulfillment === "SHIPPING") ? <span className="mt-2 font-semibold">Address</span> : null}
             {addr ? <span className="whitespace-pre-line">{`${addr.address1}${addr.address2 ? `, ${addr.address2}` : ""}\n${addr.city}, ${addr.state} ${addr.zip}`}</span> : null}
             {order.customerNote ? <p className="mt-2 rounded-lg bg-blush p-3"><strong>Note:</strong> {order.customerNote}</p> : null}
-            <span className="mt-2 text-xs text-mute">Placed {order.createdAt.toLocaleString()}</span>
+            <span className="mt-2 text-xs text-mute">Placed {order.createdAt.toLocaleString()}{order.customerId ? " · Has a My account login" : ""}</span>
             {order.receiptUrl ? <a href={order.receiptUrl} target="_blank" rel="noreferrer" className="text-xs text-pink-deep underline">Square receipt</a> : null}
           </section>
 
@@ -123,6 +124,11 @@ export default async function OrderDetail({ params, searchParams }: { params: Pr
                   {Object.entries(statusLabels).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                 </select>
               </label>
+              {order.fulfillment === "SHIPPING" ? (
+                <label className="field">Tracking number
+                  <input name="trackingNumber" defaultValue={order.trackingNumber ?? ""} className="input" placeholder="Shows in the customer's account" />
+                </label>
+              ) : null}
               <label className="field">Private notes
                 <textarea name="adminNotes" defaultValue={order.adminNotes ?? ""} rows={3} className="input" placeholder="Only you can see these" />
               </label>

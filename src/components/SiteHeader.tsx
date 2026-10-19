@@ -1,7 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { CartButton } from "./CartButton";
-import { MenuIcon } from "./icons";
+import { MenuIcon, UserIcon } from "./icons";
 
 const links = [
   { href: "/", label: "Home" },
@@ -31,6 +31,9 @@ export function SiteHeader({ announcement }: { announcement?: string }) {
             ))}
           </nav>
           <div className="flex items-center gap-2">
+            <Link href="/account" aria-label="My account" title="My account" className="hidden h-11 w-11 sm:flex items-center justify-center rounded-full border-[1.5px] border-ink hover:border-pink hover:text-pink-deep">
+              <UserIcon className="h-5 w-5" />
+            </Link>
             <CartButton />
             <details className="relative lg:hidden">
               <summary className="flex h-11 w-11 cursor-pointer list-none items-center justify-center rounded-full border-[1.5px] border-ink" aria-label="Menu">
@@ -42,6 +45,7 @@ export function SiteHeader({ announcement }: { announcement?: string }) {
                     {l.label}
                   </Link>
                 ))}
+                <Link href="/account" className="rounded-lg px-4 py-3 text-sm font-semibold uppercase tracking-[0.06em] hover:bg-blush">My account</Link>
               </nav>
             </details>
           </div>

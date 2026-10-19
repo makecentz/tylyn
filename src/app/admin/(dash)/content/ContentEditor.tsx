@@ -10,6 +10,7 @@ const tabs = [
   { id: "gallery", label: "Gallery" },
   { id: "policies", label: "Policies and FAQs" },
   { id: "contact", label: "Contact and social" },
+  { id: "shipping", label: "Pickup and shipping" },
 ] as const;
 
 function useSection<K extends ContentKey>(key: K, initial: SiteContentMap[K]) {
@@ -107,6 +108,7 @@ export function ContentEditor({ initial }: { initial: SiteContentMap }) {
   const policies = useSection("policies", initial.policies);
   const faqs = useSection("faqs", initial.faqs);
   const contact = useSection("contact", initial.contact);
+  const shipping = useSection("shipping", initial.shipping);
 
   return (
     <div className="flex flex-col gap-5">
@@ -226,6 +228,25 @@ export function ContentEditor({ initial }: { initial: SiteContentMap }) {
             </div>
             <Text label="Business hours" long placeholder={"Mon–Fri 10am–6pm\nSat by appointment"} value={contact.value.hours} onChange={(hours) => contact.update({ hours })} />
             <Text label="Footer tagline" value={contact.value.tagline} onChange={(tagline) => contact.update({ tagline })} />
+          </Section>
+        </div>
+      ) : null}
+
+      {tab === "shipping" ? (
+        <div className="max-w-4xl">
+          <Section title="Pickup and shipping" onSave={shipping.save} status={shipping.status}>
+            <p className="text-sm text-mute">Customers choose one of these in their cart. Local pickup is always offered. Set the pickup area under Contact and social.</p>
+            <Text label="Local pickup note" value={shipping.value.pickupNote} onChange={(pickupNote) => shipping.update({ pickupNote })} />
+            <label className="flex items-center gap-2 text-sm font-semibold">
+              <input type="checkbox" className="h-5 w-5 accent-pink" checked={shipping.value.offerShipping} onChange={(e) => shipping.update({ offerShipping: e.target.checked })} />
+              Offer shipping
+            </label>
+            {shipping.value.offerShipping ? (
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-[180px_1fr]">
+                <Text label="Flat shipping rate ($)" placeholder="12.00" value={shipping.value.flatRate} onChange={(flatRate) => shipping.update({ flatRate })} />
+                <Text label="Shipping note" value={shipping.value.shippingNote} onChange={(shippingNote) => shipping.update({ shippingNote })} />
+              </div>
+            ) : null}
           </Section>
         </div>
       ) : null}

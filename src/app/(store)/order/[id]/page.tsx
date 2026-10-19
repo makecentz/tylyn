@@ -42,6 +42,7 @@ export default async function OrderConfirmation({ params }: { params: Promise<{ 
       </div>
       <div className="flex flex-wrap gap-3">
         {order.receiptUrl ? <a href={order.receiptUrl} target="_blank" rel="noreferrer" className="btn btn-dark">View Square receipt</a> : null}
+        {order.customerId ? <Link href="/account" className="btn btn-pink">Track it in My account</Link> : null}
         <Link href="/shop" className="btn btn-outline">Keep shopping</Link>
       </div>
     </div>

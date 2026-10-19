@@ -25,7 +25,11 @@ export async function updateOrder(formData: FormData) {
   if (!statuses.includes(status as (typeof statuses)[number])) throw new Error("Invalid status");
   await db.order.update({
     where: { id },
-    data: { status, adminNotes: String(formData.get("adminNotes") ?? "").slice(0, 5000) || null },
+    data: {
+      status,
+      adminNotes: String(formData.get("adminNotes") ?? "").slice(0, 5000) || null,
+      ...(formData.has("trackingNumber") ? { trackingNumber: String(formData.get("trackingNumber")).trim().slice(0, 100) || null } : {}),
+    },
   });
   revalidatePath("/admin/orders");
   redirect(`/admin/orders/${id}?saved=1`);

@@ -1,14 +1,15 @@
 import type { Metadata } from "next";
-import { getAllContent } from "@/lib/content";
+import { getCustomer, parseAddress } from "@/lib/customer-auth";
+import { getShippingOptions } from "@/lib/shipping";
 import { isSquareProduction, squareConfigured } from "@/lib/square";
-import { shippingRateCents } from "@/lib/pricing";
 import { CheckoutForm } from "./CheckoutForm";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Checkout", robots: { index: false } };
 
 export default async function CheckoutPage() {
-  const { contact } = await getAllContent();
+  const customer = await getCustomer();
+  const [firstName, ...rest] = (customer?.name ?? "").split(" ");
   return (
     <div className="bg-blush">
       <CheckoutForm
@@ -19,8 +20,12 @@ export default async function CheckoutPage() {
           production: isSquareProduction,
         }}
         taxPercent={parseFloat(process.env.SALES_TAX_PERCENT || "0") || 0}
-        shippingCents={shippingRateCents()}
-        pickupArea={contact.pickupArea}
+        shipping={await getShippingOptions()}
+        account={
+          customer
+            ? { email: customer.email, firstName, lastName: rest.join(" "), phone: customer.phone, address: parseAddress(customer.address) }
+            : null
+        }
       />
     </div>
   );

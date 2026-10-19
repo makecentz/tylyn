@@ -3,6 +3,8 @@
 Website and online store for Tylyn Tingz Creations: custom party favors, party packages and 1-on-1 craft classes. Customers personalize an item, pay with Square, and the owner manages everything from `/admin`.
 
 - **Storefront:** home, shop with collections, product pages with custom questions and photo upload, cart, Square checkout (card, Apple Pay, Google Pay, Cash App Pay), order confirmation, gallery, policies and FAQs, contact.
+- **Pickup and shipping:** shoppers choose local pickup or flat-rate shipping in the cart. Checkout collects contact info and an address on every order. Set the rate under **Admin → Site content → Pickup and shipping**.
+- **My account (`/account`):** shoppers can create an account (on its own or while checking out) to see their orders, progress, tracking numbers and class times, and save their details for next time.
 - **Quote requests:** a quote form (event date, services, guest count, details) on the home page and the contact page. Requests land under **Admin → Quote requests**, and the owner gets an email when email is set up.
 - **Admin (`/admin`):** orders and class bookings with status tracking, private notes and Square refunds; products and services (prices, photos, the questions customers answer, add-ons, visibility); add-ons and collections; every piece of site copy (announcement bar, home page, gallery, policies, FAQs, contact and social links).
 
