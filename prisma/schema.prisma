@@ -131,3 +131,26 @@ model SiteContent {
   value     Json
   updatedAt DateTime @updatedAt
 }
+
+enum QuoteStatus {
+  NEW
+  CONTACTED
+  BOOKED
+  CLOSED
+}
+
+// Requests from the "Get a quote" form on the home and contact pages
+model QuoteRequest {
+  id         String      @id @default(cuid())
+  status     QuoteStatus @default(NEW)
+  name       String
+  email      String
+  phone      String
+  eventDate  DateTime?   @db.Date
+  services   String[]
+  guestCount Int?
+  details    String      @default("")
+  adminNotes String?
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+}

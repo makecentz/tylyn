@@ -10,6 +10,7 @@ export const dynamic = "force-dynamic";
 const nav = [
   { href: "/admin/orders", label: "Orders" },
   { href: "/admin/orders?type=classes", label: "Class bookings" },
+  { href: "/admin/quotes", label: "Quote requests" },
   { href: "/admin/products", label: "Products and services" },
   { href: "/admin/addons", label: "Add-ons and collections" },
   { href: "/admin/content", label: "Site content" },
@@ -18,7 +19,11 @@ const nav = [
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const admin = await requireAdmin();
-  const newCount = await db.order.count({ where: { status: "NEW", paymentStatus: "PAID" } });
+  const [newCount, newQuotes] = await Promise.all([
+    db.order.count({ where: { status: "NEW", paymentStatus: "PAID" } }),
+    db.quoteRequest.count({ where: { status: "NEW" } }),
+  ]);
+  const badges: Record<string, number> = { Orders: newCount, "Quote requests": newQuotes };
 
   return (
     <div className="flex min-h-screen flex-wrap bg-[#F7F3F5]">
@@ -31,8 +36,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           {nav.map((n) => (
             <Link key={n.href} href={n.href} className="flex min-h-11 items-center rounded-[10px] px-3.5 text-sm font-semibold hover:bg-white/10">
               {n.label}
-              {n.label === "Orders" && newCount > 0 ? (
-                <span className="ml-auto rounded-full bg-pink px-2 py-0.5 text-xs text-ink">{newCount}</span>
+              {badges[n.label] ? (
+                <span className="ml-auto rounded-full bg-pink px-2 py-0.5 text-xs text-ink">{badges[n.label]}</span>
               ) : null}
             </Link>
           ))}
