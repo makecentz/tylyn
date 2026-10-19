@@ -5,18 +5,13 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import type { OrderStatus, ProductKind } from "@prisma/client";
-import { clearSessionCookie, requireAdmin } from "@/lib/auth";
+import { requireAdmin } from "@/lib/auth";
 import { saveContent, type ContentKey, type SiteContentMap } from "@/lib/content";
 import { customFieldSchema } from "@/lib/custom-fields";
 import { db } from "@/lib/db";
 import { parseDollars } from "@/lib/money";
 import { money, square, squareConfigured, squareErrorMessage } from "@/lib/square";
 import { UploadError, saveImage } from "@/lib/upload";
-
-export async function logout() {
-  await clearSessionCookie();
-  redirect("/admin/login");
-}
 
 /* ---------- Orders ---------- */
 
