@@ -1,0 +1,131 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum ProductKind {
+  PRODUCT
+  SERVICE
+}
+
+enum OrderStatus {
+  NEW
+  PROOF_SENT
+  IN_PRODUCTION
+  READY
+  SHIPPED
+  COMPLETED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+  PARTIALLY_REFUNDED
+}
+
+enum Fulfillment {
+  PICKUP
+  SHIPPING
+}
+
+model Collection {
+  id        String    @id @default(cuid())
+  slug      String    @unique
+  name      String
+  tagline   String?
+  sortOrder Int       @default(0)
+  products  Product[]
+}
+
+model Product {
+  id             String      @id @default(cuid())
+  slug           String      @unique
+  name           String
+  kind           ProductKind @default(PRODUCT)
+  priceCents     Int
+  // Short label shown next to the price, e.g. "per dozen"
+  priceNote      String?
+  description    String      @default("")
+  includes       String[]
+  images         String[]
+  // Questions asked on the product page, see src/lib/custom-fields.ts
+  customFields   Json        @default("[]")
+  active         Boolean     @default(true)
+  featured       Boolean     @default(false)
+  // When false the product shows an inquiry button instead of Add to cart
+  onlineCheckout Boolean     @default(true)
+  leadDays       Int         @default(14)
+  sortOrder      Int         @default(0)
+  collectionId   String?
+  collection     Collection? @relation(fields: [collectionId], references: [id], onDelete: SetNull)
+  addOns         AddOn[]
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+}
+
+model AddOn {
+  id         String    @id @default(cuid())
+  name       String
+  priceCents Int
+  priceNote  String?
+  active     Boolean   @default(true)
+  sortOrder  Int       @default(0)
+  products   Product[]
+}
+
+model Order {
+  id              String        @id @default(cuid())
+  number          Int           @unique @default(autoincrement())
+  status          OrderStatus   @default(NEW)
+  paymentStatus   PaymentStatus @default(PENDING)
+  customerName    String
+  email           String
+  phone           String
+  fulfillment     Fulfillment   @default(PICKUP)
+  shippingAddress Json?
+  customerNote    String?
+  subtotalCents   Int
+  taxCents        Int           @default(0)
+  shippingCents   Int           @default(0)
+  totalCents      Int
+  refundedCents   Int           @default(0)
+  squareOrderId   String?       @unique
+  squarePaymentId String?       @unique
+  receiptUrl      String?
+  // Browser-generated key that stops a double-submitted checkout from creating two orders
+  checkoutKey     String?       @unique
+  adminNotes      String?
+  items           OrderItem[]
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+}
+
+model OrderItem {
+  id             String  @id @default(cuid())
+  orderId        String
+  order          Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId      String?
+  productName    String
+  kind           ProductKind @default(PRODUCT)
+  unitPriceCents Int
+  quantity       Int
+  // { label: value } answers to the product's custom fields
+  customization  Json    @default("{}")
+  // [{ name, priceCents, quantity }]
+  addOns         Json    @default("[]")
+  lineTotalCents Int
+}
+
+// Editable site copy, keyed by section. See src/lib/content.ts for the shape of each key.
+model SiteContent {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
+}
