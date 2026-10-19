@@ -91,6 +91,20 @@ model AddOn {
   products   Product[]
 }
 
+// A shopper's account, for seeing their orders and saving their details.
+model Customer {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  phone        String   @default("")
+  passwordHash String
+  // { address1, address2?, city, state, zip }
+  address      Json?
+  orders       Order[]
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
 model Order {
   id              String        @id @default(cuid())
   number          Int           @unique @default(autoincrement())
@@ -100,6 +114,7 @@ model Order {
   email           String
   phone           String
   fulfillment     Fulfillment   @default(PICKUP)
+  // The buyer's address: where to ship, or their contact address for pickup orders and classes
   shippingAddress Json?
   customerNote    String?
   subtotalCents   Int
@@ -113,6 +128,9 @@ model Order {
   // Browser-generated key that stops a double-submitted checkout from creating two orders
   checkoutKey     String?       @unique
   adminNotes      String?
+  trackingNumber  String?
+  customerId      String?
+  customer        Customer?     @relation(fields: [customerId], references: [id], onDelete: SetNull)
   // Class bookings only: the date, start time ("14:30") and place the owner confirms
   classStatus     ClassStatus   @default(REQUESTED)
   classDate       DateTime?     @db.Date
@@ -121,6 +139,8 @@ model Order {
   items           OrderItem[]
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
+
+  @@index([customerId])
 }
 
 model OrderItem {

@@ -6,7 +6,9 @@ import Script from "next/script";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { lineTotal, useCart } from "@/components/CartProvider";
+import { FulfillmentChoice, type ShippingOptions } from "@/components/FulfillmentChoice";
 import { LockIcon } from "@/components/icons";
+import type { Address } from "@/lib/customer-auth";
 import { formatCents } from "@/lib/money";
 
 /* Minimal types for the parts of Square's Web Payments SDK used here. */
@@ -30,24 +32,40 @@ declare global {
 type Props = {
   square: { configured: boolean; applicationId: string; locationId: string; production: boolean };
   taxPercent: number;
-  shippingCents: number | null;
-  pickupArea: string;
+  shipping: ShippingOptions;
+  /** The signed-in shopper, used to fill in the form and save the order to their account. */
+  account: { email: string; firstName: string; lastName: string; phone: string; address: Address | null } | null;
 };
 
-export function CheckoutForm({ square, taxPercent, shippingCents, pickupArea }: Props) {
+export function CheckoutForm({ square, taxPercent, shipping: shippingOptions, account }: Props) {
   const router = useRouter();
   const cart = useCart();
   const [sdkLoaded, setSdkLoaded] = useState(false);
   const [card, setCard] = useState<SqCard | null>(null);
   const [wallets, setWallets] = useState<{ apple?: SqWallet; google?: SqWallet; cashApp?: SqWallet }>({});
   const paymentRequestRef = useRef<SqPaymentRequest | null>(null);
-  const [form, setForm] = useState({ firstName: "", lastName: "", email: "", phone: "", note: "", address1: "", address2: "", city: "", state: "", zip: "" });
-  const [fulfillment, setFulfillment] = useState<"PICKUP" | "SHIPPING">("PICKUP");
+  const [form, setForm] = useState({
+    firstName: account?.firstName ?? "",
+    lastName: account?.lastName ?? "",
+    email: account?.email ?? "",
+    phone: account?.phone ?? "",
+    note: "",
+    address1: account?.address?.address1 ?? "",
+    address2: account?.address?.address2 ?? "",
+    city: account?.address?.city ?? "",
+    state: account?.address?.state ?? "",
+    zip: account?.address?.zip ?? "",
+    password: "",
+  });
+  const [createAccount, setCreateAccount] = useState(false);
+  const { fulfillment: chosen, setFulfillment } = cart;
+  const shippingCents = shippingOptions.shippingCents;
   const [error, setError] = useState<string | null>(null);
   const [paying, setPaying] = useState(false);
   const idempotencyKey = useRef<string>("");
 
   const onlyServices = cart.items.length > 0 && cart.items.every((i) => i.kind === "SERVICE");
+  const fulfillment = onlyServices || shippingCents === null ? "PICKUP" : chosen;
   const shipping = fulfillment === "SHIPPING" && shippingCents !== null ? shippingCents : 0;
   const tax = Math.round((cart.subtotalCents * taxPercent) / 100);
   const total = cart.subtotalCents + tax + shipping;
@@ -109,9 +127,12 @@ export function CheckoutForm({ square, taxPercent, shippingCents, pickupArea }: 
     if (!form.firstName.trim() || !form.lastName.trim()) return "Please enter your first and last name.";
     if (!/^\S+@\S+\.\S+$/.test(form.email)) return "Please enter a valid email so we can send your proof and receipt.";
     if (form.phone.replace(/\D/g, "").length < 10) return "Please enter a phone number we can text or call.";
-    if (fulfillment === "SHIPPING" && (!form.address1 || !form.city || !form.state || !form.zip)) return "Please enter your full shipping address.";
+    if (!form.address1.trim() || !form.city.trim() || form.state.trim().length < 2 || form.zip.trim().length < 3) {
+      return fulfillment === "SHIPPING" ? "Please enter your full shipping address." : "Please enter your full address.";
+    }
+    if (createAccount && form.password.length < 8) return "Please choose an account password with at least 8 characters.";
     return null;
-  }, [form, fulfillment]);
+  }, [form, fulfillment, createAccount]);
 
   const pay = useCallback(
     async (method: "card" | "apple" | "google" | "cashApp", presetToken?: string) => {
@@ -155,10 +176,8 @@ export function CheckoutForm({ square, taxPercent, shippingCents, pickupArea }: 
             fulfillment,
             customer: { name: `${form.firstName.trim()} ${form.lastName.trim()}`, email: form.email.trim(), phone: form.phone.trim() },
             note: form.note.trim() || undefined,
-            shippingAddress:
-              fulfillment === "SHIPPING"
-                ? { address1: form.address1, address2: form.address2, city: form.city, state: form.state, zip: form.zip }
-                : undefined,
+            shippingAddress: { address1: form.address1, address2: form.address2 || undefined, city: form.city, state: form.state, zip: form.zip },
+            accountPassword: !account && createAccount ? form.password : undefined,
             items: cart.items.map((i) => ({ productId: i.productId, quantity: i.quantity, customization: i.customization, addOns: i.addOns })),
           }),
         });
@@ -176,7 +195,7 @@ export function CheckoutForm({ square, taxPercent, shippingCents, pickupArea }: 
         setPaying(false);
       }
     },
-    [card, wallets, validate, total, form, fulfillment, cart, router],
+    [card, wallets, validate, total, form, fulfillment, cart, router, account, createAccount],
   );
 
   // Cash App Pay finishes through an event instead of a click handler.
@@ -214,46 +233,56 @@ export function CheckoutForm({ square, taxPercent, shippingCents, pickupArea }: 
         <form onSubmit={(e) => { e.preventDefault(); pay("card"); }} className="flex min-w-[min(100%,560px)] flex-[999] flex-col gap-6" noValidate>
           <h1 className="font-serif text-4xl">Checkout</h1>
 
+          {account ? (
+            <p className="rounded-xl bg-white px-4 py-3 text-sm">
+              Signed in as <strong>{account.email}</strong>. This order will be saved to <Link href="/account" className="font-semibold text-pink-deep underline">My account</Link>.
+            </p>
+          ) : (
+            <p className="rounded-xl bg-white px-4 py-3 text-sm">
+              Have an account? <Link href="/account/login?next=/checkout" className="font-semibold text-pink-deep underline">Sign in</Link> to fill this in for you and track your order.
+            </p>
+          )}
+
           <section aria-labelledby="c1" className="card flex flex-col gap-4">
-            <h2 id="c1" className="font-serif text-[22px]">1. Your details</h2>
+            <h2 id="c1" className="font-serif text-[22px]">1. Your contact info</h2>
             <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
               <label className="field">First name<input className="input" autoComplete="given-name" value={form.firstName} onChange={set("firstName")} /></label>
               <label className="field">Last name<input className="input" autoComplete="family-name" value={form.lastName} onChange={set("lastName")} /></label>
-              <label className="field">Email (for your proof and receipt)<input className="input" type="email" autoComplete="email" value={form.email} onChange={set("email")} /></label>
+              <label className="field">Email (for your proof and receipt)<input className="input" type="email" autoComplete="email" value={form.email} onChange={set("email")} readOnly={Boolean(account)} /></label>
               <label className="field">Phone<input className="input" type="tel" autoComplete="tel" value={form.phone} onChange={set("phone")} /></label>
             </div>
             <label className="field">Order notes (optional)<textarea className="input" rows={2} value={form.note} onChange={set("note")} /></label>
-          </section>
-
-          {!onlyServices ? (
-            <section aria-labelledby="c2" className="card flex flex-col gap-4">
-              <h2 id="c2" className="font-serif text-[22px]">2. Pickup or shipping</h2>
-              <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
-                <label className={`flex min-h-16 items-center gap-3 rounded-xl border-2 px-4 font-semibold ${fulfillment === "PICKUP" ? "border-pink bg-blush" : "border-line"}`}>
-                  <input type="radio" name="ful" checked={fulfillment === "PICKUP"} onChange={() => setFulfillment("PICKUP")} className="h-5 w-5 accent-pink" />
-                  <span className="flex flex-col">Local pickup<span className="text-[13px] font-normal text-mute">Free{pickupArea ? ` · ${pickupArea}` : ""}</span></span>
+            {!account ? (
+              <div className="flex flex-col gap-3 rounded-xl bg-blush p-4">
+                <label className="flex items-start gap-3 text-sm font-semibold">
+                  <input type="checkbox" checked={createAccount} onChange={(e) => setCreateAccount(e.target.checked)} className="mt-0.5 h-5 w-5 accent-pink" />
+                  <span className="flex flex-col">Create an account to track this order<span className="font-normal text-mute">See its status and your past orders any time in My account.</span></span>
                 </label>
-                {shippingCents !== null ? (
-                  <label className={`flex min-h-16 items-center gap-3 rounded-xl border-2 px-4 font-semibold ${fulfillment === "SHIPPING" ? "border-pink bg-blush" : "border-line"}`}>
-                    <input type="radio" name="ful" checked={fulfillment === "SHIPPING"} onChange={() => setFulfillment("SHIPPING")} className="h-5 w-5 accent-pink" />
-                    <span className="flex flex-col">Ship to me<span className="text-[13px] font-normal text-mute">{formatCents(shippingCents)}</span></span>
-                  </label>
+                {createAccount ? (
+                  <label className="field">Choose a password<span className="text-xs font-normal text-mute">At least 8 characters</span><input className="input" type="password" autoComplete="new-password" value={form.password} onChange={set("password")} /></label>
                 ) : null}
               </div>
-              {fulfillment === "SHIPPING" ? (
-                <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-6">
-                  <label className="field sm:col-span-4">Street address<input className="input" autoComplete="address-line1" value={form.address1} onChange={set("address1")} /></label>
-                  <label className="field sm:col-span-2">Apt, suite<input className="input" autoComplete="address-line2" value={form.address2} onChange={set("address2")} /></label>
-                  <label className="field sm:col-span-3">City<input className="input" autoComplete="address-level2" value={form.city} onChange={set("city")} /></label>
-                  <label className="field sm:col-span-1">State<input className="input" autoComplete="address-level1" maxLength={2} value={form.state} onChange={set("state")} /></label>
-                  <label className="field sm:col-span-2">ZIP<input className="input" autoComplete="postal-code" value={form.zip} onChange={set("zip")} /></label>
-                </div>
-              ) : null}
-            </section>
-          ) : null}
+            ) : null}
+          </section>
+
+          <section aria-labelledby="c2" className="card flex flex-col gap-4">
+            <h2 id="c2" className="font-serif text-[22px]">2. {onlyServices ? "Your address" : "Pickup or shipping"}</h2>
+            {!onlyServices ? <FulfillmentChoice options={shippingOptions} value={fulfillment} onChange={setFulfillment} /> : null}
+            <h3 className="text-sm font-semibold">
+              {fulfillment === "SHIPPING" && !onlyServices ? "Shipping address" : "Your address"}
+              {fulfillment !== "SHIPPING" || onlyServices ? <span className="font-normal text-mute"> (for your order records, we won&apos;t ship anything)</span> : null}
+            </h3>
+            <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-6">
+              <label className="field sm:col-span-4">Street address<input className="input" autoComplete="address-line1" value={form.address1} onChange={set("address1")} /></label>
+              <label className="field sm:col-span-2">Apt, suite (optional)<input className="input" autoComplete="address-line2" value={form.address2} onChange={set("address2")} /></label>
+              <label className="field sm:col-span-3">City<input className="input" autoComplete="address-level2" value={form.city} onChange={set("city")} /></label>
+              <label className="field sm:col-span-1">State<input className="input" autoComplete="address-level1" maxLength={2} value={form.state} onChange={set("state")} /></label>
+              <label className="field sm:col-span-2">ZIP<input className="input" autoComplete="postal-code" value={form.zip} onChange={set("zip")} /></label>
+            </div>
+          </section>
 
           <section aria-labelledby="c3" className="card flex flex-col gap-4">
-            <h2 id="c3" className="font-serif text-[22px]">{onlyServices ? "2" : "3"}. Payment</h2>
+            <h2 id="c3" className="font-serif text-[22px]">3. Payment</h2>
             {!square.configured ? (
               <p role="alert" className="rounded-xl bg-[#FFF1C7] p-4 text-sm text-[#5C4500]">
                 Online payments aren&apos;t switched on yet. Please contact us to place your order.

@@ -35,6 +35,13 @@ export type SiteContentMap = {
     hours: string;
     tagline: string;
   };
+  shipping: {
+    offerShipping: boolean;
+    // Flat rate in dollars, e.g. "12.00"
+    flatRate: string;
+    pickupNote: string;
+    shippingNote: string;
+  };
 };
 
 export type ContentKey = keyof SiteContentMap;
@@ -86,7 +93,7 @@ export const defaultContent: SiteContentMap = {
       { title: "Order deadlines", body: "Please place orders at least 2 weeks before your event so there is time for a design proof and production." },
       { title: "Design proofs", body: "We email a design proof after you order. Production starts once you approve it." },
       { title: "Changes and refunds", body: "Because every item is custom, orders can't be refunded once production has started. Contact us right away if you need a change." },
-      { title: "Pickup and shipping", body: "Local pickup is by appointment. Shipping is available on request." },
+      { title: "Pickup and shipping", body: "Local pickup is free and by appointment. Shipping is a flat rate you can choose in your cart." },
     ],
   },
   faqs: {
@@ -105,6 +112,12 @@ export const defaultContent: SiteContentMap = {
     pickupArea: "",
     hours: "",
     tagline: "It's not just a package, it's a lifestyle.",
+  },
+  shipping: {
+    offerShipping: true,
+    flatRate: process.env.SHIPPING_FLAT_RATE || "12.00",
+    pickupNote: "We'll text you when your order is ready to pick up.",
+    shippingNote: "Flat rate. Ships once your order is made.",
   },
 };
 

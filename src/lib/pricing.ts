@@ -1,3 +1,4 @@
+import { getAllContent } from "./content";
 import { db } from "./db";
 import { parseCustomFields } from "./custom-fields";
 import type { CartItem } from "./cart-types";
@@ -16,12 +17,15 @@ export type PricedLine = {
 
 export class PricingError extends Error {}
 
-/** Re-prices a cart from the database. Never trust prices sent by the browser. */
-export function shippingRateCents(): number | null {
-  const v = parseFloat(process.env.SHIPPING_FLAT_RATE || "");
+/** The flat shipping rate set under Site content, or null when the shop is pickup only. */
+export async function shippingRateCents(): Promise<number | null> {
+  const { shipping } = await getAllContent();
+  if (!shipping.offerShipping) return null;
+  const v = parseFloat(String(shipping.flatRate).replace(/[$,\s]/g, ""));
   return Number.isFinite(v) && v >= 0 ? Math.round(v * 100) : null;
 }
 
+/** Re-prices a cart from the database. Never trust prices sent by the browser. */
 export async function priceCart(items: CartItem[], fulfillment: "PICKUP" | "SHIPPING" = "PICKUP") {
   if (items.length === 0) throw new PricingError("Your cart is empty.");
   const products = await db.product.findMany({
@@ -67,7 +71,7 @@ export async function priceCart(items: CartItem[], fulfillment: "PICKUP" | "SHIP
   const taxCents = Math.round((subtotalCents * taxPercent) / 100);
   let shippingCents = 0;
   if (fulfillment === "SHIPPING") {
-    const rate = shippingRateCents();
+    const rate = await shippingRateCents();
     if (rate === null) throw new PricingError("Shipping isn't available right now. Please choose pickup.");
     shippingCents = rate;
   }

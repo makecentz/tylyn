@@ -4,6 +4,9 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import type { StoredCartItem } from "@/lib/cart-types";
 
 const STORAGE_KEY = "tt_cart_v1";
+const FULFILLMENT_KEY = "tt_fulfillment";
+
+export type Fulfillment = "PICKUP" | "SHIPPING";
 
 type CartContextValue = {
   items: StoredCartItem[];
@@ -14,6 +17,8 @@ type CartContextValue = {
   remove: (key: string) => void;
   setQuantity: (key: string, quantity: number) => void;
   clear: () => void;
+  fulfillment: Fulfillment;
+  setFulfillment: (f: Fulfillment) => void;
 };
 
 const CartContext = createContext<CartContextValue | null>(null);
@@ -28,11 +33,13 @@ export function lineTotal(item: StoredCartItem) {
 export function CartProvider({ children }: { children: React.ReactNode }) {
   const [items, setItems] = useState<StoredCartItem[]>([]);
   const [ready, setReady] = useState(false);
+  const [fulfillment, setFulfillmentState] = useState<Fulfillment>("PICKUP");
 
   useEffect(() => {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (raw) setItems(JSON.parse(raw));
+      if (localStorage.getItem(FULFILLMENT_KEY) === "SHIPPING") setFulfillmentState("SHIPPING");
     } catch {
       // Storage can be unavailable (private mode); the cart just starts empty.
     }
@@ -56,6 +63,12 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     [],
   );
   const clear = useCallback(() => setItems([]), []);
+  const setFulfillment = useCallback((f: Fulfillment) => {
+    setFulfillmentState(f);
+    try {
+      localStorage.setItem(FULFILLMENT_KEY, f);
+    } catch {}
+  }, []);
 
   const value = useMemo(
     () => ({
@@ -67,8 +80,10 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       remove,
       setQuantity,
       clear,
+      fulfillment,
+      setFulfillment,
     }),
-    [items, ready, add, remove, setQuantity, clear],
+    [items, ready, add, remove, setQuantity, clear, fulfillment, setFulfillment],
   );
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;

@@ -26,7 +26,6 @@ export default function SettingsPage() {
           <Row ok={Boolean(env.BLOB_READ_WRITE_TOKEN)} label="Photo uploads" help="BLOB_READ_WRITE_TOKEN from a Vercel Blob store" />
           <Row ok={Boolean(env.RESEND_API_KEY && env.EMAIL_FROM)} label="Order emails" help="RESEND_API_KEY, EMAIL_FROM and OWNER_NOTIFY_EMAIL" />
           <Row ok={Boolean(env.SALES_TAX_PERCENT)} label={`Sales tax${env.SALES_TAX_PERCENT ? ` (${env.SALES_TAX_PERCENT}%)` : ""}`} help="SALES_TAX_PERCENT, leave empty for no tax" />
-          <Row ok={Boolean(env.SHIPPING_FLAT_RATE)} label={`Shipping${env.SHIPPING_FLAT_RATE ? ` ($${env.SHIPPING_FLAT_RATE} flat)` : " (pickup only)"}`} help="SHIPPING_FLAT_RATE, leave empty to offer pickup only" />
         </ul>
       </div>
     </>

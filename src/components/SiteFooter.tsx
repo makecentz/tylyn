@@ -77,6 +77,7 @@ export function SiteFooter({ contact }: { contact: SiteContentMap["contact"] }) 
             { href: "/policies", label: "Pickup and shipping" },
             { href: "/policies", label: "Refunds and changes" },
             { href: "/cart", label: "Your cart" },
+            { href: "/account", label: "My account" },
           ]}
         />
 

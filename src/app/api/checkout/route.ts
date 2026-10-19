@@ -1,6 +1,8 @@
+import bcrypt from "bcryptjs";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { cartItemSchema } from "@/lib/cart-types";
+import { addressSchema, cookieForCustomer, getCustomer, normalizeEmail } from "@/lib/customer-auth";
 import { db } from "@/lib/db";
 import { sendOrderEmails } from "@/lib/email";
 import { PricingError, priceCart } from "@/lib/pricing";
@@ -17,15 +19,10 @@ const bodySchema = z.object({
     phone: z.string().trim().min(7).max(40),
   }),
   note: z.string().max(1000).optional(),
-  shippingAddress: z
-    .object({
-      address1: z.string().min(1).max(200),
-      address2: z.string().max(200).optional(),
-      city: z.string().min(1).max(100),
-      state: z.string().min(2).max(40),
-      zip: z.string().min(3).max(20),
-    })
-    .optional(),
+  // Collected for every order: the shipping address, or the buyer's address for pickup orders and classes.
+  shippingAddress: addressSchema,
+  // When set, creates an account for the buyer once the payment goes through.
+  accountPassword: z.string().min(8).max(200).optional(),
   items: z.array(cartItemSchema).min(1).max(50),
 });
 
@@ -43,8 +40,13 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Some checkout details are missing or invalid. Please check the form." }, { status: 400 });
   }
   const body = parsed.data;
-  if (body.fulfillment === "SHIPPING" && !body.shippingAddress) {
-    return NextResponse.json({ error: "Please enter your shipping address." }, { status: 400 });
+  const signedIn = await getCustomer();
+  const email = signedIn?.email ?? normalizeEmail(body.customer.email);
+  if (!signedIn && body.accountPassword && (await db.customer.findUnique({ where: { email } }))) {
+    return NextResponse.json(
+      { error: "There's already an account with this email. Sign in first, or uncheck \"Create an account\"." },
+      { status: 409 },
+    );
   }
 
   // Re-price everything from the database; the browser's numbers are only used to catch stale carts.
@@ -72,10 +74,11 @@ export async function POST(req: Request) {
   const order = await db.order.create({
     data: {
       customerName: body.customer.name,
-      email: body.customer.email,
+      email,
       phone: body.customer.phone,
       fulfillment: body.fulfillment,
-      shippingAddress: body.shippingAddress ?? undefined,
+      shippingAddress: body.shippingAddress,
+      customerId: signedIn?.id,
       customerNote: body.note,
       subtotalCents: priced.subtotalCents,
       taxCents: priced.taxCents,
@@ -156,7 +159,33 @@ export async function POST(req: Request) {
       include: { items: true },
     });
     await sendOrderEmails(paid);
-    return NextResponse.json({ orderId: paid.id });
+
+    const res = NextResponse.json({ orderId: paid.id });
+    try {
+      if (signedIn) {
+        // Remember their details for next time if the account doesn't have them yet.
+        await db.customer.update({
+          where: { id: signedIn.id },
+          data: { phone: signedIn.phone || body.customer.phone, address: signedIn.address ?? body.shippingAddress },
+        });
+      } else if (body.accountPassword) {
+        const customer = await db.customer.create({
+          data: {
+            email,
+            name: body.customer.name,
+            phone: body.customer.phone,
+            address: body.shippingAddress,
+            passwordHash: await bcrypt.hash(body.accountPassword, 10),
+            orders: { connect: { id: paid.id } },
+          },
+        });
+        res.cookies.set(await cookieForCustomer(customer.id));
+      }
+    } catch (e) {
+      // The payment already went through, so an account problem must not turn this into an error.
+      console.error("Couldn't save the buyer's account", e);
+    }
+    return res;
   } catch (err) {
     console.error("Checkout failed", err);
     // Nothing was charged, so drop the unpaid order to keep the admin list clean.
