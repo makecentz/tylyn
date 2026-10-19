@@ -12,7 +12,15 @@ const imOutsideFields: CustomField[] = [
   { key: "notes", label: "Notes for the designer", type: "textarea", required: false },
 ];
 
+// Marks the database as seeded, so deploys that run `db:seed --once` never bring back
+// products the owner has since deleted.
+const SEEDED_KEY = "system:seeded";
+
 async function main() {
+  if (process.argv.includes("--once") && (await db.siteContent.findUnique({ where: { key: SEEDED_KEY } }))) {
+    console.log("Starter products were already added; skipping.");
+    return;
+  }
   const collections = [
     { slug: "im-outside", name: "I'm Outside Packages", tagline: "Adult party packs", sortOrder: 1 },
     { slug: "party-bundles", name: "Party Bundles", tagline: "Kids' birthdays", sortOrder: 2 },
@@ -135,6 +143,11 @@ async function main() {
     if (!existing) await db.product.create({ data: { slug: p.slug, ...data, addOns: { connect: p.addOns.map((id) => ({ id })) } } });
   }
 
+  await db.siteContent.upsert({
+    where: { key: SEEDED_KEY },
+    create: { key: SEEDED_KEY, value: { at: new Date().toISOString() } },
+    update: {},
+  });
   console.log("Seeded collections, add-ons and products.");
 }
 

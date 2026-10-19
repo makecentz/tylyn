@@ -38,8 +38,7 @@ Open http://localhost:3000 and sign in at http://localhost:3000/admin.
    - `ADMIN_EMAIL` and `ADMIN_PASSWORD_HASH`. Use the "For Vercel" line from `npm run hash-password`, without the backslashes.
    - `AUTH_SECRET`: any long random string (`openssl rand -base64 32`).
    - The Square values (see below), `NEXT_PUBLIC_SITE_URL`, and optionally `SALES_TAX_PERCENT`, `SHIPPING_FLAT_RATE` and the email settings.
-5. **Deploy.** Each deploy runs `prisma migrate deploy` automatically (the `vercel-build` script).
-6. **Seed once:** from your computer, with `DATABASE_URL` pointing at the Neon database, run `npm run db:seed`.
+5. **Deploy.** Each deploy runs the database migrations automatically (the `vercel-build` script). The first deploy also adds the starter products; later deploys skip that step, so products you delete stay deleted.
 
 The **Settings and Square** page in the admin shows which of these are set.
 
