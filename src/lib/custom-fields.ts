@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const customFieldTypes = ["text", "textarea", "number", "date", "photo", "select", "favors"] as const;
+export const customFieldTypes = ["text", "textarea", "number", "date", "photo", "select", "favors", "session"] as const;
 export type CustomFieldType = (typeof customFieldTypes)[number];
 
 export const customFieldSchema = z.object({
@@ -13,6 +13,8 @@ export const customFieldSchema = z.object({
   // Only for "favors": the items a shopper can pick, each priced per piece (null = not priced yet).
   items: z.array(z.object({ name: z.string().min(1).max(80), priceCents: z.number().int().min(0).nullable() })).optional(),
   minQty: z.number().int().min(1).max(500).optional(),
+  // Only for "session": the class dates and start times the owner offers. Each one can be booked once.
+  sessions: z.array(z.object({ date: z.iso.date(), time: z.string().regex(/^\d{2}:\d{2}$/) })).max(200).optional(),
 });
 
 export type CustomField = z.infer<typeof customFieldSchema>;
@@ -53,6 +55,22 @@ export function favorsField(fields: CustomField[]): CustomField | undefined {
   return fields.find((f) => f.type === "favors");
 }
 
+export type ClassSession = NonNullable<CustomField["sessions"]>[number];
+
+/** How a picked session travels in the cart: "2026-11-08 14:00". */
+export function sessionValue(s: ClassSession): string {
+  return `${s.date} ${s.time}`;
+}
+
+export function parseSessionValue(value: string): ClassSession | null {
+  const m = /^(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2})$/.exec(value.trim());
+  return m ? { date: m[1], time: m[2] } : null;
+}
+
+export function sessionField(fields: CustomField[]): CustomField | undefined {
+  return fields.find((f) => f.type === "session");
+}
+
 export function slugifyKey(label: string): string {
   return label
     .toLowerCase()
@@ -72,9 +90,7 @@ export const defaultPartyFields: CustomField[] = [
 ];
 
 export const defaultClassFields: CustomField[] = [
-  { key: "preferred_date", label: "Preferred class date", type: "date", required: true },
-  { key: "backup_date", label: "Backup date", type: "date", required: false },
-  { key: "preferred_time", label: "Preferred time", type: "select", required: true, options: ["Morning (9am to 12pm)", "Afternoon (12pm to 4pm)", "Evening (4pm to 8pm)"] },
+  { key: "class_session", label: "Class date and time", type: "session", required: true, sessions: [] },
   { key: "topic", label: "What do you want to learn?", type: "select", required: true, options: ["Designing templates", "Printing techniques", "Vinyl projects", "Party favor creations", "Event graphics", "Something else"] },
   { key: "notes", label: "Anything else we should know?", type: "textarea", required: false },
 ];

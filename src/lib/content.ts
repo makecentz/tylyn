@@ -74,7 +74,7 @@ export const defaultContent: SiteContentMap = {
   classBanner: {
     script: "I'll teach it!",
     title: "1-on-1 classes",
-    body: "Hands-on lessons customized to what you want to learn, with flexible scheduling.",
+    body: "Hands-on lessons customized to what you want to learn. Pick an open date and book your spot.",
     topics: ["Designing templates", "Printing techniques", "Vinyl projects", "Party favor creations", "Event graphics"],
   },
   about: {

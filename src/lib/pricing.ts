@@ -1,7 +1,9 @@
 import { getAllContent } from "./content";
 import { db } from "./db";
 import { getPaymentSettings } from "./payment-settings";
-import { MAX_FAVOR_QTY, parseCustomFields, parseFavors } from "./custom-fields";
+import { openSessions } from "./class-sessions";
+import { formatSession } from "./classes";
+import { MAX_FAVOR_QTY, parseCustomFields, parseFavors, parseSessionValue, sessionValue, type ClassSession } from "./custom-fields";
 import type { CartItem } from "./cart-types";
 import type { ProductKind } from "@prisma/client";
 
@@ -14,6 +16,8 @@ export type PricedLine = {
   customization: Record<string, string>; // label -> answer
   addOns: { name: string; priceCents: number; quantity: number }[];
   lineTotalCents: number;
+  // The class date and time the shopper picked, for products that offer set sessions
+  session?: ClassSession;
 };
 
 export class PricingError extends Error {}
@@ -34,7 +38,7 @@ export async function priceCart(items: CartItem[], fulfillment: "PICKUP" | "SHIP
     include: { addOns: true },
   });
 
-  const lines: PricedLine[] = items.map((item) => {
+  const lines: PricedLine[] = await Promise.all(items.map(async (item) => {
     const product = products.find((p) => p.id === item.productId);
     if (!product || !product.active || !product.onlineCheckout) {
       throw new PricingError("An item in your cart is no longer available. Please remove it and try again.");
@@ -42,9 +46,23 @@ export async function priceCart(items: CartItem[], fulfillment: "PICKUP" | "SHIP
     const fields = parseCustomFields(product.customFields);
     const customization: Record<string, string> = {};
     let favorsCents = 0;
+    let session: ClassSession | undefined;
     for (const field of fields) {
       const answer = (item.customization[field.key] ?? "").trim();
       if (field.required && !answer) throw new PricingError(`"${field.label}" is required for ${product.name}.`);
+      if (field.type === "session" && answer) {
+        const picked = parseSessionValue(answer);
+        const offered = picked && (field.sessions ?? []).some((s) => sessionValue(s) === sessionValue(picked));
+        if (!picked || !offered) throw new PricingError(`That class time for ${product.name} isn't offered anymore. Please pick another.`);
+        const open = await openSessions(product.id, field.sessions ?? []);
+        if (!open.some((s) => sessionValue(s) === answer)) {
+          throw new PricingError(`Sorry, ${formatSession(picked)} was just booked. Please pick another time for ${product.name}.`);
+        }
+        if (item.quantity !== 1) throw new PricingError(`Each ${product.name} time can be booked once.`);
+        session = picked;
+        customization[field.label] = formatSession(picked);
+        continue;
+      }
       if (field.type === "favors" && answer) {
         const picks = parseFavors(answer);
         if (!picks) throw new PricingError(`Please choose your ${field.label.toLowerCase()} again.`);
@@ -79,8 +97,10 @@ export async function priceCart(items: CartItem[], fulfillment: "PICKUP" | "SHIP
       customization,
       addOns,
       lineTotalCents: unitPriceCents * item.quantity + addOnTotal,
+      session,
     };
-  });
+  }));
+  if (lines.filter((l) => l.session).length > 1) throw new PricingError("Please book one class per checkout.");
 
   const subtotalCents = lines.reduce((s, l) => s + l.lineTotalCents, 0);
   const { taxPercent } = await getPaymentSettings();
