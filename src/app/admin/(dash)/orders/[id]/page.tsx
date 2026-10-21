@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { formatCents } from "@/lib/money";
 import { classStatuses } from "@/lib/classes";
-import { updateClassBooking, updateOrder } from "../../../actions";
+import { markManualOrderPaid, updateClassBooking, updateOrder } from "../../../actions";
 import { ClassStatusPill, Flash, PaymentPill, StatusPill, classStatusLabels, statusLabels } from "../../admin-ui";
 import { RefundForm } from "./RefundForm";
 
@@ -79,13 +79,20 @@ export default async function OrderDetail({ params, searchParams }: { params: Pr
           <section className="card flex flex-col gap-1 border-t-4 border-pink text-sm">
             <h2 className="mb-1 font-serif text-xl">Customer</h2>
             <span className="font-semibold">{order.customerName}</span>
-            <a href={`mailto:${order.email}?subject=${encodeURIComponent(`Your Tylyn Tingz order #${order.number}`)}`} className="text-pink-deep underline">{order.email}</a>
+            {order.email ? <a href={`mailto:${order.email}?subject=${encodeURIComponent(`Your Tylyn Tingz order #${order.number}`)}`} className="text-pink-deep underline">{order.email}</a> : null}
             <a href={`tel:${order.phone}`} className="text-pink-deep underline">{order.phone}</a>
             {hasProducts ? <span className="mt-2 font-semibold">{order.fulfillment === "SHIPPING" ? "Ship to" : "Local pickup"}</span> : null}
             {addr && !(hasProducts && order.fulfillment === "SHIPPING") ? <span className="mt-2 font-semibold">Address</span> : null}
             {addr ? <span className="whitespace-pre-line">{`${addr.address1}${addr.address2 ? `, ${addr.address2}` : ""}\n${addr.city}, ${addr.state} ${addr.zip}`}</span> : null}
             {order.customerNote ? <p className="mt-2 rounded-lg bg-blush p-3"><strong>Note:</strong> {order.customerNote}</p> : null}
             <span className="mt-2 text-xs text-mute">Placed {order.createdAt.toLocaleString()}{order.customerId ? " · Has a My account login" : ""}</span>
+            {order.manual ? <span className="text-xs text-mute">Added by you in the admin</span> : null}
+            {order.manual && order.paymentStatus === "PENDING" ? (
+              <form action={markManualOrderPaid} className="mt-2">
+                <input type="hidden" name="id" value={order.id} />
+                <button className="btn btn-dark min-h-11">Mark as paid</button>
+              </form>
+            ) : null}
             {order.receiptUrl ? <a href={order.receiptUrl} target="_blank" rel="noreferrer" className="text-xs text-pink-deep underline">{order.paymentProvider === "STRIPE" ? "Stripe" : "Square"} receipt</a> : null}
           </section>
 

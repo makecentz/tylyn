@@ -24,6 +24,7 @@ export default function SettingsPage() {
           <Row ok={Boolean(env.BLOB_READ_WRITE_TOKEN)} label="Photo uploads" help="BLOB_READ_WRITE_TOKEN from a Vercel Blob store" />
           <Row ok={Boolean(env.RESEND_API_KEY && env.EMAIL_FROM)} label="Order emails" help="RESEND_API_KEY, EMAIL_FROM and OWNER_NOTIFY_EMAIL" />
         </ul>
+        <p className="mt-3 text-sm"><Link href="/admin/password" className="font-semibold text-pink-deep underline">Change your admin password</Link></p>
         <p className="mt-3 text-sm">Payment processor keys and sales tax are on the <Link href="/admin/payments" className="font-semibold text-pink-deep underline">Payments</Link> page.</p>
       </div>
     </>

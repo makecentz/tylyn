@@ -3,14 +3,14 @@ import { redirect } from "next/navigation";
 import type { OrderStatus, Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { formatCents } from "@/lib/money";
-import { PageTitle, PaymentPill, StatusPill, statusLabels } from "../admin-ui";
+import { Flash, PageTitle, PaymentPill, StatusPill, statusLabels } from "../admin-ui";
 
 const OPEN: OrderStatus[] = ["NEW", "PROOF_SENT", "IN_PRODUCTION", "READY", "SHIPPED"];
 // Class-only bookings live on the Class bookings page.
 const PRODUCT_ORDERS: Prisma.OrderWhereInput = { paymentStatus: { not: "PENDING" }, items: { some: { kind: "PRODUCT" } } };
 
-export default async function OrdersPage({ searchParams }: { searchParams: Promise<{ status?: string; q?: string; type?: string }> }) {
-  const { status, q, type } = await searchParams;
+export default async function OrdersPage({ searchParams }: { searchParams: Promise<{ status?: string; q?: string; type?: string; password?: string }> }) {
+  const { status, q, type, password } = await searchParams;
   if (type === "classes") redirect("/admin/classes");
 
   const where: Prisma.OrderWhereInput = {
@@ -53,6 +53,7 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
 
   return (
     <>
+      <Flash message={password === "changed" ? "Your password was changed." : undefined} />
       <PageTitle
         actions={
           <form className="flex items-center gap-2" action="/admin/orders">

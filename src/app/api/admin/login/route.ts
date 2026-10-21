@@ -1,5 +1,6 @@
 import bcrypt from "bcryptjs";
 import { NextResponse, type NextRequest } from "next/server";
+import { getAdminPasswordHash } from "@/lib/admin-password";
 import { setSessionCookie } from "@/lib/auth";
 
 // A plain form POST instead of a server action, so a login page loaded before a
@@ -9,7 +10,7 @@ export async function POST(req: NextRequest) {
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const password = String(formData.get("password") ?? "");
   const adminEmail = (process.env.ADMIN_EMAIL ?? "").trim().toLowerCase();
-  const hash = process.env.ADMIN_PASSWORD_HASH ?? "";
+  const hash = await getAdminPasswordHash();
   const back = (error: string) => NextResponse.redirect(new URL(`/admin/login?error=${error}`, req.url), 303);
 
   if (!adminEmail || !hash) return back("setup");

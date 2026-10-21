@@ -299,3 +299,93 @@ export async function saveContentSection<K extends ContentKey>(key: K, value: Si
   revalidatePath("/", "layout");
   return { ok: true };
 }
+
+/* ---------- Classes booked by the owner ---------- */
+
+const manualClassSchema = z.object({
+  productId: z.string().min(1, "Pick a class."),
+  customerName: z.string().trim().min(1, "Enter the student's name.").max(120),
+  phone: z.string().trim().min(7, "Enter a phone number.").max(40),
+  email: z.union([z.literal(""), z.email("That email doesn't look right.").max(200)]),
+  price: z.string(),
+  topic: z.string().trim().max(200),
+  classDate: z.union([z.literal(""), z.iso.date()]),
+  classTime: z.union([z.literal(""), z.string().regex(/^\d{2}:\d{2}$/)]),
+  classLocation: z.string().trim().max(300),
+  paid: z.enum(["yes", "no"]),
+  adminNotes: z.string().max(5000),
+});
+
+/** Records a class booked over the phone or in person, so it shows on Class bookings like an online one. */
+export async function createManualClass(_prev: { error?: string } | null, formData: FormData): Promise<{ error?: string }> {
+  await requireAdmin();
+  const parsed = manualClassSchema.safeParse(Object.fromEntries([...formData.entries()].map(([k, v]) => [k, String(v)])));
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Please check the form." };
+  const f = parsed.data;
+  const product = await db.product.findFirst({ where: { id: f.productId, kind: "SERVICE" } });
+  if (!product) return { error: "Pick a class." };
+  const priceCents = f.price.trim() ? parseDollars(f.price) : product.priceCents;
+  if (priceCents === null) return { error: "Enter a price like 250 or 250.00." };
+
+  const order = await db.order.create({
+    data: {
+      manual: true,
+      customerName: f.customerName,
+      phone: f.phone,
+      email: f.email,
+      paymentStatus: f.paid === "yes" ? "PAID" : "PENDING",
+      subtotalCents: priceCents,
+      totalCents: priceCents,
+      classStatus: f.classDate ? "SCHEDULED" : "REQUESTED",
+      classDate: f.classDate ? new Date(`${f.classDate}T00:00:00Z`) : null,
+      classTime: f.classTime || null,
+      classLocation: f.classLocation || null,
+      adminNotes: f.adminNotes.trim() || null,
+      items: {
+        create: {
+          productId: product.id,
+          productName: product.name,
+          kind: "SERVICE",
+          unitPriceCents: priceCents,
+          quantity: 1,
+          customization: { "Booked by": "Added in the admin", ...(f.topic ? { "What do you want to learn?": f.topic } : {}) },
+          lineTotalCents: priceCents,
+        },
+      },
+    },
+  });
+  revalidatePath("/admin/classes");
+  redirect(`/admin/orders/${order.id}?saved=1`);
+}
+
+/** For orders entered by hand: record that the customer paid in person. */
+export async function markManualOrderPaid(formData: FormData) {
+  await requireAdmin();
+  const id = String(formData.get("id"));
+  await db.order.updateMany({ where: { id, manual: true, paymentStatus: "PENDING" }, data: { paymentStatus: "PAID" } });
+  revalidatePath("/admin/classes");
+  redirect(`/admin/orders/${id}?saved=1`);
+}
+
+/* ---------- Editing several products at once ---------- */
+
+const bulkActions = ["show", "hide", "feature", "unfeature", "collection", "delete"] as const;
+export type BulkProductAction = (typeof bulkActions)[number];
+
+export async function bulkUpdateProducts(ids: string[], action: BulkProductAction, collectionId?: string): Promise<{ error?: string; ok?: string }> {
+  await requireAdmin();
+  if (!bulkActions.includes(action)) return { error: "Unknown action." };
+  const where = { id: { in: ids.filter((x) => typeof x === "string").slice(0, 500) } };
+  if (where.id.in.length === 0) return { error: "Tick at least one product first." };
+  let count = 0;
+  if (action === "delete") count = (await db.product.deleteMany({ where })).count;
+  else if (action === "collection") {
+    count = (await db.product.updateMany({ where, data: { collectionId: collectionId || null } })).count;
+  } else {
+    const data = { show: { active: true }, hide: { active: false }, feature: { featured: true }, unfeature: { featured: false } }[action];
+    count = (await db.product.updateMany({ where, data })).count;
+  }
+  revalidatePath("/", "layout");
+  const verb = { show: "shown in the shop", hide: "hidden", feature: "featured", unfeature: "unfeatured", collection: "moved", delete: "deleted" }[action];
+  return { ok: `${count} ${count === 1 ? "item" : "items"} ${verb}.` };
+}

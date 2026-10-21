@@ -146,6 +146,8 @@ model Order {
   classDate             DateTime?       @db.Date
   classTime             String?
   classLocation         String?
+  // Entered by the owner in the admin (a phone or in-person booking), not checked out online
+  manual                Boolean         @default(false)
   items                 OrderItem[]
   createdAt             DateTime        @default(now())
   updatedAt             DateTime        @updatedAt
