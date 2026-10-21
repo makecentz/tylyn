@@ -36,3 +36,8 @@ export function shopToday() {
   const ymd = new Date().toLocaleDateString("en-CA", { timeZone: process.env.SHOP_TIME_ZONE || "America/New_York" });
   return new Date(`${ymd}T00:00:00Z`);
 }
+
+/** "Sat, Nov 8, 2026 at 2:00 PM" */
+export function formatSession(s: { date: string; time: string }) {
+  return `${formatDay(s.date)} at ${formatTime(s.time)}`;
+}

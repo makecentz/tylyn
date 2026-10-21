@@ -172,6 +172,11 @@ export async function saveProduct(input: ProductInput): Promise<{ error?: string
   const favors = p.customFields.filter((f) => f.type === "favors");
   if (favors.length > 1) return { error: "A product can only have one favor picker." };
   if (p.onlineCheckout && p.active && priceCents === 0 && !favors.length) return { error: "Set a price before turning on online checkout." };
+  const sessionFields = p.customFields.filter((f) => f.type === "session");
+  if (sessionFields.length > 1) return { error: "A product can only have one list of class dates." };
+  for (const f of sessionFields) {
+    if ((f.sessions ?? []).some((x) => !x.date || !x.time)) return { error: "Every class date needs a date and a start time." };
+  }
   for (const f of favors) {
     if (!f.items?.length) return { error: `Add at least one item to "${f.label}".` };
     const bad = f.items.find((i) => /,|×/.test(i.name));

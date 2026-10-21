@@ -18,7 +18,40 @@ const fieldTypeLabels: Record<(typeof customFieldTypes)[number], string> = {
   photo: "Photo upload",
   select: "Dropdown",
   favors: "Favor picker",
+  session: "Class dates you offer",
 };
+
+/** The class dates and start times the owner offers; shoppers pick one and it's booked for them. */
+function SessionsEditor({ field, onChange }: { field: CustomField; onChange: (patch: Partial<CustomField>) => void }) {
+  const sessions = field.sessions ?? [];
+  const today = new Date().toISOString().slice(0, 10);
+  const set = (next: NonNullable<CustomField["sessions"]>) => onChange({ sessions: next });
+  return (
+    <div className="flex flex-col gap-2.5 sm:col-span-4">
+      <span className="text-[13px] font-semibold">Class dates and start times customers can book</span>
+      {sessions.map((s, j) => (
+        <div key={j} className={`flex flex-wrap items-center gap-2 ${s.date && s.date <= today ? "opacity-60" : ""}`}>
+          <input type="date" aria-label="Class date" className="input w-44" value={s.date} onChange={(e) => set(sessions.map((x, k) => (k === j ? { ...x, date: e.target.value } : x)))} />
+          <input type="time" aria-label="Start time" className="input w-36" value={s.time} onChange={(e) => set(sessions.map((x, k) => (k === j ? { ...x, time: e.target.value } : x)))} />
+          <button type="button" onClick={() => set(sessions.filter((_, k) => k !== j))} className="min-h-11 px-2 text-sm font-semibold text-[#B3124F]">Remove</button>
+          {s.date && s.date <= today ? <span className="text-xs text-mute">Past, hidden from customers</span> : null}
+        </div>
+      ))}
+      <button
+        type="button"
+        className="btn btn-outline min-h-11 self-start"
+        onClick={() => {
+          const last = sessions[sessions.length - 1];
+          const tomorrow = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
+          set([...sessions, { date: last && last.date > today ? last.date : tomorrow, time: last?.time ?? "10:00" }]);
+        }}
+      >
+        + Add a date
+      </button>
+      <p className="text-sm text-mute">Each time can be booked once. Once someone books it, it disappears from the shop and the booking shows on Class bookings with that date and time.</p>
+    </div>
+  );
+}
 
 function itemsToText(items: CustomField["items"]) {
   return (items ?? []).map((i) => (i.priceCents === null ? i.name : `${i.name} - ${(i.priceCents / 100).toFixed(2)}`)).join("\n");
@@ -235,6 +268,7 @@ export function ProductEditor({
                 Required
               </label>
               <button type="button" onClick={() => set("customFields", p.customFields.filter((_, j) => j !== i))} className="min-h-[46px] px-2 text-sm font-semibold text-[#B3124F]">Remove</button>
+              {f.type === "session" ? <SessionsEditor field={f} onChange={(patch) => setField(i, patch)} /> : null}
               {f.type === "favors" ? <FavorItemsEditor field={f} onChange={(patch) => setField(i, patch)} /> : null}
               {f.type === "select" ? (
                 <label className="field sm:col-span-4">Choices (one per line)

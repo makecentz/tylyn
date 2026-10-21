@@ -3,7 +3,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { db } from "@/lib/db";
-import { favorsField, favorsPriced, parseCustomFields } from "@/lib/custom-fields";
+import { openSessions } from "@/lib/class-sessions";
+import { favorsField, favorsPriced, parseCustomFields, sessionField } from "@/lib/custom-fields";
 import { OTHER_SERVICE } from "@/lib/quote";
 import { formatCents } from "@/lib/money";
 import { getAllContent } from "@/lib/content";
@@ -27,10 +28,15 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
   const product = await load((await params).slug);
   if (!product) notFound();
   const { contact } = await getAllContent();
-  const fields = parseCustomFields(product.customFields);
+  const allFields = parseCustomFields(product.customFields);
+  // Only offer class times that are still in the future and not booked.
+  const sessions = sessionField(allFields);
+  const open = sessions ? await openSessions(product.id, sessions.sessions ?? []) : [];
+  const fields = allFields.map((f) => (f === sessions ? { ...f, sessions: open } : f));
+  const fullyBooked = Boolean(sessions) && open.length === 0;
   // A favor picker always shows; it takes payment once every favor has a price, and asks for a quote until then.
   const favors = favorsField(fields);
-  const checkout = product.onlineCheckout && (favors ? favorsPriced(favors) : product.priceCents > 0);
+  const checkout = product.onlineCheckout && !fullyBooked && (favors ? favorsPriced(favors) : product.priceCents > 0);
   const [main, ...rest] = product.images;
 
   return (
@@ -116,8 +122,10 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
             />
           ) : (
             <div className="flex flex-col gap-3 rounded-2xl bg-ink p-6 text-white">
-              <span className="font-serif text-2xl text-gold">Request this package</span>
-              <p className="text-sm leading-relaxed text-[#E9E2E6]">Contact us for pricing and to place this order.</p>
+              <span className="font-serif text-2xl text-gold">{fullyBooked ? "No class times open right now" : "Request this package"}</span>
+              <p className="text-sm leading-relaxed text-[#E9E2E6]">
+                {fullyBooked ? "New dates are added often. Reach out and we'll let you know when the next class opens up." : "Contact us for pricing and to place this order."}
+              </p>
               <div className="flex flex-wrap gap-3">
                 {contact.phone ? <a href={`tel:+1${contact.phone.replace(/\D/g, "").slice(-10)}`} className="btn btn-pink">Call or text {contact.phone}</a> : null}
                 <Link href={`/contact?product=${encodeURIComponent(product.name)}`} className="btn btn-outline-gold">Other ways to reach us</Link>

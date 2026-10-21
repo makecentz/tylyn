@@ -147,7 +147,7 @@ export default async function HomePage() {
                 ))}
               </div>
             </div>
-            <Link href="/classes" className="btn btn-gold min-h-14">Request a class date</Link>
+            <Link href="/classes" className="btn btn-gold min-h-14">Book a class</Link>
           </div>
         </section>
       ) : null}

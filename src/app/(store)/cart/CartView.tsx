@@ -4,6 +4,8 @@ import Image from "next/image";
 import Link from "next/link";
 import { useEffect } from "react";
 import { lineTotal, useCart } from "@/components/CartProvider";
+import { formatSession } from "@/lib/classes";
+import { parseSessionValue } from "@/lib/custom-fields";
 import { FulfillmentChoice, type ShippingOptions } from "@/components/FulfillmentChoice";
 import { formatCents } from "@/lib/money";
 
@@ -44,7 +46,7 @@ export function CartView({ shipping }: { shipping: ShippingOptions }) {
                     {Object.entries(item.customization).map(([k, v]) => (
                       <div key={k} className="flex gap-1">
                         <dt>{item.fieldLabels[k] ?? k}:</dt>
-                        <dd className="truncate">{v.startsWith("/uploads/") || v.startsWith("https://") ? "Photo added" : v}</dd>
+                        <dd className="truncate">{v.startsWith("/uploads/") || v.startsWith("https://") ? "Photo added" : parseSessionValue(v) ? formatSession(parseSessionValue(v)!) : v}</dd>
                       </div>
                     ))}
                   </dl>

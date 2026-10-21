@@ -101,6 +101,11 @@ export async function POST(req: Request) {
       shippingCents: priced.shippingCents,
       totalCents: priced.totalCents,
       checkoutKey: body.idempotencyKey,
+      // A class booked into one of the owner's set times is scheduled right away.
+      ...(() => {
+        const session = priced.lines.find((l) => l.session)?.session;
+        return session ? { classStatus: "SCHEDULED" as const, classDate: new Date(`${session.date}T00:00:00Z`), classTime: session.time } : {};
+      })(),
       items: {
         create: priced.lines.map((l) => ({
           productId: l.productId,
