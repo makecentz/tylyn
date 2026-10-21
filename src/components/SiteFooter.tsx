@@ -22,7 +22,6 @@ function Column({ title, links }: { title: string; links: { href: string; label:
 
 export function SiteFooter({ contact, processor }: { contact: SiteContentMap["contact"]; processor: string }) {
   const socials = [
-    contact.instagram && { href: `https://instagram.com/${contact.instagram}`, label: "Instagram", Icon: InstagramIcon },
     contact.facebook && { href: contact.facebook.startsWith("http") ? contact.facebook : `https://facebook.com/${contact.facebook}`, label: "Facebook", Icon: FacebookIcon },
     contact.tiktok && { href: `https://tiktok.com/@${contact.tiktok.replace(/^@/, "")}`, label: "TikTok", Icon: TikTokIcon },
   ].filter(Boolean) as { href: string; label: string; Icon: typeof InstagramIcon }[];
@@ -67,6 +66,7 @@ export function SiteFooter({ contact, processor }: { contact: SiteContentMap["co
             { href: "/gallery", label: "Gallery" },
             { href: "/classes", label: "Book a class" },
             { href: "/contact", label: "Contact" },
+            { href: "/admin", label: "Admin" },
           ]}
         />
         <Column
