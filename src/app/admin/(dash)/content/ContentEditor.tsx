@@ -138,18 +138,11 @@ export function ContentEditor({ initial }: { initial: SiteContentMap }) {
           </Section>
 
           <Section title="Hero (top of the home page)" onSave={hero.save} status={hero.status}>
-            <Text label="Script line" value={hero.value.script} onChange={(script) => hero.update({ script })} />
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <Text label="Headline" value={hero.value.headline} onChange={(headline) => hero.update({ headline })} />
-              <Text label="Gold highlight at the end of the headline" value={hero.value.highlight} onChange={(highlight) => hero.update({ highlight })} />
-            </div>
-            <Text label="Intro paragraph" long value={hero.value.intro} onChange={(intro) => hero.update({ intro })} />
+            <p className="text-sm text-[#5A5257]">The top of the home page plays the Tylyn Tingz video with the tagline and these two buttons under it. Change the tagline under Contact and social.</p>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <Text label="Pink button (goes to the shop)" value={hero.value.primaryLabel} onChange={(primaryLabel) => hero.update({ primaryLabel })} />
               <Text label="Gold button (goes to classes)" value={hero.value.secondaryLabel} onChange={(secondaryLabel) => hero.update({ secondaryLabel })} />
             </div>
-            <div className="field">Hero images (the first two are shown)</div>
-            <ImageListEditor value={hero.value.images} onChange={(images) => hero.update({ images })} max={2} />
           </Section>
 
           <Section title="Which sections show on the home page" onSave={homeSections.save} status={homeSections.status}>
@@ -227,7 +220,7 @@ export function ContentEditor({ initial }: { initial: SiteContentMap }) {
               <Text label="Pickup area" placeholder="e.g. Philadelphia, PA" value={contact.value.pickupArea} onChange={(pickupArea) => contact.update({ pickupArea })} />
             </div>
             <Text label="Business hours" long placeholder={"Mon–Fri 10am–6pm\nSat by appointment"} value={contact.value.hours} onChange={(hours) => contact.update({ hours })} />
-            <Text label="Footer tagline" value={contact.value.tagline} onChange={(tagline) => contact.update({ tagline })} />
+            <Text label="Tagline (under the home page video and in the footer)" value={contact.value.tagline} onChange={(tagline) => contact.update({ tagline })} />
           </Section>
         </div>
       ) : null}
