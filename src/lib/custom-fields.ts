@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const customFieldTypes = ["text", "textarea", "number", "date", "photo", "select"] as const;
+export const customFieldTypes = ["text", "textarea", "number", "date", "photo", "select", "favors"] as const;
 export type CustomFieldType = (typeof customFieldTypes)[number];
 
 export const customFieldSchema = z.object({
@@ -10,6 +10,9 @@ export const customFieldSchema = z.object({
   required: z.boolean().default(false),
   options: z.array(z.string()).optional(),
   placeholder: z.string().optional(),
+  // Only for "favors": the items a shopper can pick, each priced per piece (null = not priced yet).
+  items: z.array(z.object({ name: z.string().min(1).max(80), priceCents: z.number().int().min(0).nullable() })).optional(),
+  minQty: z.number().int().min(1).max(500).optional(),
 });
 
 export type CustomField = z.infer<typeof customFieldSchema>;
@@ -17,6 +20,37 @@ export type CustomField = z.infer<typeof customFieldSchema>;
 export function parseCustomFields(value: unknown): CustomField[] {
   const parsed = z.array(customFieldSchema).safeParse(value);
   return parsed.success ? parsed.data : [];
+}
+
+export type FavorItem = NonNullable<CustomField["items"]>[number];
+export type FavorPick = { name: string; quantity: number };
+
+export const MAX_FAVOR_QTY = 1000;
+
+/** A favors answer as it's stored on the order, e.g. "Capri Suns × 24, Ring Pops × 12". */
+export function formatFavors(picks: FavorPick[]): string {
+  return picks.filter((p) => p.quantity > 0).map((p) => `${p.name} × ${p.quantity}`).join(", ");
+}
+
+export function parseFavors(answer: string): FavorPick[] | null {
+  if (!answer.trim()) return [];
+  const picks: FavorPick[] = [];
+  for (const part of answer.split(", ")) {
+    const m = /^(.+) × (\d+)$/.exec(part.trim());
+    if (!m) return null;
+    picks.push({ name: m[1], quantity: Number(m[2]) });
+  }
+  return picks;
+}
+
+/** Every item has a price, so the favors can be bought online instead of quoted. */
+export function favorsPriced(field: CustomField): boolean {
+  const items = field.items ?? [];
+  return items.length > 0 && items.every((i) => i.priceCents !== null);
+}
+
+export function favorsField(fields: CustomField[]): CustomField | undefined {
+  return fields.find((f) => f.type === "favors");
 }
 
 export function slugifyKey(label: string): string {

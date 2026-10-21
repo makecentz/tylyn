@@ -35,8 +35,9 @@ export function ProductCard({ product, dark = false }: { product: ProductCardDat
         <span className={`line-clamp-2 text-sm leading-6 ${dark ? "text-[#CFC6CB]" : "text-mute"}`}>{product.description}</span>
         <span className="mt-auto flex items-center justify-between pt-3">
           <span className={`font-serif text-[26px] ${dark ? "text-gold" : ""}`}>
-            {product.onlineCheckout ? formatCents(product.priceCents) : "Ask for a quote"}
-            {product.onlineCheckout && product.priceNote ? <span className="ml-1 font-sans text-xs text-mute"> {product.priceNote}</span> : null}
+            {/* A $0 product prices itself from what the shopper picks, like the party favor builder. */}
+            {!product.onlineCheckout ? "Ask for a quote" : product.priceCents === 0 ? "Build your own" : formatCents(product.priceCents)}
+            {product.onlineCheckout && product.priceCents > 0 && product.priceNote ? <span className="ml-1 font-sans text-xs text-mute"> {product.priceNote}</span> : null}
           </span>
           <span className="rounded-full bg-pink px-4 py-2 text-[13px] font-bold text-ink">{product.onlineCheckout ? "Customize" : "Details"}</span>
         </span>

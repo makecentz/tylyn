@@ -3,7 +3,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { db } from "@/lib/db";
-import { parseCustomFields } from "@/lib/custom-fields";
+import { favorsField, favorsPriced, parseCustomFields } from "@/lib/custom-fields";
+import { OTHER_SERVICE } from "@/lib/quote";
 import { formatCents } from "@/lib/money";
 import { getAllContent } from "@/lib/content";
 import { ProductForm } from "./ProductForm";
@@ -27,6 +28,9 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
   if (!product) notFound();
   const { contact } = await getAllContent();
   const fields = parseCustomFields(product.customFields);
+  // A favor picker always shows; it takes payment once every favor has a price, and asks for a quote until then.
+  const favors = favorsField(fields);
+  const checkout = product.onlineCheckout && (favors ? favorsPriced(favors) : product.priceCents > 0);
   const [main, ...rest] = product.images;
 
   return (
@@ -69,7 +73,11 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
               <span className="text-xs font-bold uppercase tracking-[0.14em] text-gold-deep">{product.collection.name} · Everything custom</span>
             ) : null}
             <h1 className="font-serif text-4xl leading-tight sm:text-[46px]">{product.name}</h1>
-            {product.onlineCheckout ? (
+            {favors ? (
+              <span className="text-sm font-semibold uppercase tracking-[0.08em] text-pink-deep">
+                {checkout ? "Priced per favor · pick what you want below" : "Pick your favors and we'll send you a quote"}
+              </span>
+            ) : product.onlineCheckout ? (
               <span className="font-serif text-[34px] text-pink-deep">
                 {formatCents(product.priceCents)}
                 {product.priceNote ? <span className="ml-2 font-sans text-base text-mute">{product.priceNote}</span> : null}
@@ -91,7 +99,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
             ) : null}
           </div>
 
-          {product.onlineCheckout && product.priceCents > 0 ? (
+          {checkout || favors ? (
             <ProductForm
               product={{
                 id: product.id,
@@ -101,6 +109,8 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
                 kind: product.kind,
                 leadDays: product.leadDays,
               }}
+              mode={checkout ? "cart" : "quote"}
+              quoteService={product.collection?.name ?? OTHER_SERVICE}
               fields={fields}
               addOns={product.addOns.map((a) => ({ id: a.id, name: a.name, priceCents: a.priceCents, priceNote: a.priceNote }))}
             />

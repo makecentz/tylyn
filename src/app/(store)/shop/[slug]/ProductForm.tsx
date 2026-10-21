@@ -3,13 +3,16 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useCart } from "@/components/CartProvider";
-import type { CustomField } from "@/lib/custom-fields";
+import { formatFavors, MAX_FAVOR_QTY, type CustomField } from "@/lib/custom-fields";
 import { formatCents } from "@/lib/money";
 
 type Props = {
   product: { id: string; name: string; image?: string; priceCents: number; kind: "PRODUCT" | "SERVICE"; leadDays: number };
   fields: CustomField[];
   addOns: { id: string; name: string; priceCents: number; priceNote: string | null }[];
+  /** "quote" sends the picks as a quote request instead of adding them to the cart. */
+  mode?: "cart" | "quote";
+  quoteService?: string;
 };
 
 function minDate(leadDays: number) {
@@ -18,7 +21,7 @@ function minDate(leadDays: number) {
   return d.toISOString().slice(0, 10);
 }
 
-export function ProductForm({ product, fields, addOns }: Props) {
+export function ProductForm({ product, fields: allFields, addOns, mode = "cart", quoteService = "" }: Props) {
   const cart = useCart();
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [addOnQty, setAddOnQty] = useState<Record<string, number>>({});
@@ -26,12 +29,34 @@ export function ProductForm({ product, fields, addOns }: Props) {
   const [uploading, setUploading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [added, setAdded] = useState(false);
+  const [favorQty, setFavorQty] = useState<Record<string, number>>({});
+  const [contact, setContact] = useState({ name: "", email: "", phone: "", eventDate: "" });
+  const [sent, setSent] = useState(false);
+  const [sending, setSending] = useState(false);
   const earliest = minDate(product.leadDays);
 
-  const addOnTotal = addOns.reduce((s, a) => s + (addOnQty[a.id] ?? 0) * a.priceCents, 0);
-  const total = product.priceCents * quantity + addOnTotal;
+  const favors = allFields.find((f) => f.type === "favors");
+  const fields = allFields.filter((f) => f.type !== "favors");
+  const favorMin = favors?.minQty ?? 1;
+  const picks = (favors?.items ?? []).filter((i) => favorQty[i.name]).map((i) => ({ name: i.name, quantity: favorQty[i.name], priceCents: i.priceCents }));
+  const favorsCents = picks.reduce((s, p) => s + (p.priceCents ?? 0) * p.quantity, 0);
+  const favorCount = picks.reduce((s, p) => s + p.quantity, 0);
+  const dateField = fields.find((f) => f.type === "date");
 
-  const fieldLabels = useMemo(() => Object.fromEntries(fields.map((f) => [f.key, f.label])), [fields]);
+  const addOnTotal = addOns.reduce((s, a) => s + (addOnQty[a.id] ?? 0) * a.priceCents, 0);
+  const total = (product.priceCents + favorsCents) * quantity + addOnTotal;
+
+  const fieldLabels = useMemo(() => Object.fromEntries(allFields.map((f) => [f.key, f.label])), [allFields]);
+
+  function setFavor(name: string, n: number) {
+    setFavorQty((q) => {
+      const next = { ...q };
+      if (n <= 0) delete next[name];
+      else next[name] = Math.min(MAX_FAVOR_QTY, n);
+      return next;
+    });
+    setAdded(false);
+  }
 
   function set(key: string, value: string) {
     setAnswers((a) => ({ ...a, [key]: value }));
@@ -56,9 +81,20 @@ export function ProductForm({ product, fields, addOns }: Props) {
     }
   }
 
-  function submit(e: React.FormEvent) {
+  async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    if (favors) {
+      if (favors.required && picks.length === 0) {
+        setError(`Pick at least one favor.`);
+        return;
+      }
+      const short = picks.find((p) => p.quantity < favorMin);
+      if (short) {
+        setError(`Favors are made in batches of at least ${favorMin}. Please raise ${short.name} to ${favorMin} or more.`);
+        return;
+      }
+    }
     for (const f of fields) {
       const v = (answers[f.key] ?? "").trim();
       if (f.required && !v) {
@@ -70,14 +106,50 @@ export function ProductForm({ product, fields, addOns }: Props) {
         return;
       }
     }
+    const customization = Object.fromEntries(
+      Object.entries({ ...(favors ? { [favors.key]: formatFavors(picks) } : {}), ...answers }).filter(([, v]) => v.trim()),
+    );
+
+    if (mode === "quote") {
+      const eventDate = (dateField ? answers[dateField.key] : contact.eventDate) ?? "";
+      if (!contact.name.trim() || !contact.email.trim() || !contact.phone.trim()) {
+        setError("Please add your name, email and phone so we can send your quote.");
+        return;
+      }
+      if (!eventDate) {
+        setError("Please pick your event date.");
+        return;
+      }
+      const details = [
+        product.name,
+        ...Object.entries(customization).map(([k, v]) => `${fieldLabels[k] ?? k}: ${v}`),
+      ].join("\n");
+      setSending(true);
+      try {
+        const res = await fetch("/api/quote", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ...contact, eventDate, services: [quoteService], guestCount: null, details, website: "" }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error ?? "Something went wrong. Please try again.");
+        setSent(true);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
+      } finally {
+        setSending(false);
+      }
+      return;
+    }
+
     cart.add({
       productId: product.id,
       name: product.name,
       kind: product.kind,
       image: product.image,
-      unitPriceCents: product.priceCents,
+      unitPriceCents: product.priceCents + favorsCents,
       quantity,
-      customization: Object.fromEntries(Object.entries(answers).filter(([, v]) => v.trim())),
+      customization,
       fieldLabels,
       addOns: addOns.filter((a) => addOnQty[a.id]).map((a) => ({ id: a.id, quantity: addOnQty[a.id] })),
       addOnDetails: addOns.filter((a) => addOnQty[a.id]).map((a) => ({ id: a.id, name: a.name, priceCents: a.priceCents, quantity: addOnQty[a.id] })),
@@ -85,11 +157,65 @@ export function ProductForm({ product, fields, addOns }: Props) {
     setAdded(true);
     setAnswers({});
     setAddOnQty({});
+    setFavorQty({});
     setQuantity(1);
+  }
+
+  if (sent) {
+    return (
+      <div role="status" className="flex flex-col gap-2 rounded-2xl bg-ink p-6 text-white">
+        <span className="font-serif text-2xl text-gold">Quote request sent</span>
+        <p className="text-sm leading-relaxed text-[#E9E2E6]">Thank you! We'll look over your favors and get back to you with pricing, usually within a day.</p>
+      </div>
+    );
   }
 
   return (
     <form onSubmit={submit} className="flex flex-col gap-5" noValidate>
+      {favors ? (
+        <fieldset className="flex flex-col gap-3 rounded-2xl border border-line px-5 pb-5 pt-4">
+          <legend className="px-2 font-serif text-xl">Choose your favors</legend>
+          <p className="text-sm text-mute">
+            Tap the favors you want, then set how many of each. Every favor is dressed in your custom design
+            {favorMin > 1 ? `, with a minimum of ${favorMin} per item` : ""}.
+          </p>
+          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+            {(favors.items ?? []).map((item) => {
+              const q = favorQty[item.name] ?? 0;
+              return (
+                <div key={item.name} className={`flex min-h-[56px] items-center justify-between gap-2 rounded-xl border-[1.5px] px-3 ${q ? "border-pink bg-blush" : "border-line"}`}>
+                  <button type="button" onClick={() => setFavor(item.name, q ? 0 : favorMin)} aria-pressed={q > 0} className="flex min-h-11 flex-1 items-center gap-2.5 text-left">
+                    <span aria-hidden className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border-[1.5px] text-xs text-white ${q ? "border-pink bg-pink" : "border-[#B7ADB2]"}`}>{q ? "✓" : ""}</span>
+                    <span className="flex flex-col">
+                      <span className="text-[15px] font-semibold leading-tight">{item.name}</span>
+                      {item.priceCents !== null && mode === "cart" ? <span className="text-[13px] text-mute">{formatCents(item.priceCents)} each</span> : null}
+                    </span>
+                  </button>
+                  {q ? (
+                    <input
+                      type="number"
+                      aria-label={`How many ${item.name}`}
+                      min={favorMin}
+                      max={MAX_FAVOR_QTY}
+                      value={q}
+                      onChange={(e) => setFavor(item.name, Math.max(1, Number(e.target.value) || 1))}
+                      onBlur={() => q < favorMin && setFavor(item.name, favorMin)}
+                      className="h-11 w-20 rounded-lg border-[1.5px] border-ink bg-white px-2 text-center font-bold"
+                    />
+                  ) : null}
+                </div>
+              );
+            })}
+          </div>
+          {picks.length ? (
+            <p className="text-sm font-semibold" aria-live="polite">
+              {picks.length} {picks.length === 1 ? "favor" : "favors"} picked, {favorCount} pieces in all
+              {mode === "cart" ? `, ${formatCents(favorsCents)}` : ""}
+            </p>
+          ) : null}
+        </fieldset>
+      ) : null}
+
       {fields.length ? (
         <fieldset className="flex flex-col gap-4 rounded-2xl border border-line px-5 pb-5 pt-4">
           <legend className="px-2 font-serif text-xl">{product.kind === "SERVICE" ? "Request your class" : "Personalize it"}</legend>
@@ -172,16 +298,44 @@ export function ProductForm({ product, fields, addOns }: Props) {
       ) : null}
 
       <div className="flex flex-col gap-3.5 rounded-2xl bg-ink p-5 text-white">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <label className="flex items-center gap-3 text-sm text-[#CFC6CB]">
-            Quantity
-            <input type="number" min={1} max={50} value={quantity} onChange={(e) => setQuantity(Math.max(1, Math.min(50, Number(e.target.value) || 1)))} className="h-11 w-20 rounded-lg border border-[#4A3F45] bg-ink-soft px-3 text-white" />
-          </label>
-          <span className="font-serif text-[32px] text-gold">{formatCents(total)}</span>
-        </div>
+        {mode === "quote" ? (
+          <>
+            <span className="font-serif text-2xl text-gold">Where should we send your quote?</span>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {([
+                ["name", "Your name", "text", "name"],
+                ["phone", "Phone", "tel", "tel"],
+                ["email", "Email", "email", "email"],
+              ] as const).map(([k, label, type, auto]) => (
+                <label key={k} className={`flex flex-col gap-1.5 text-sm text-[#CFC6CB] ${k === "email" ? "sm:col-span-2" : ""}`}>
+                  {label}
+                  <input type={type} autoComplete={auto} value={contact[k]} onChange={(e) => setContact((c) => ({ ...c, [k]: e.target.value }))} className="h-11 rounded-lg border border-[#4A3F45] bg-ink-soft px-3 text-white" />
+                </label>
+              ))}
+              {dateField ? null : (
+                <label className="flex flex-col gap-1.5 text-sm text-[#CFC6CB]">
+                  Event date
+                  <input type="date" min={earliest} value={contact.eventDate} onChange={(e) => setContact((c) => ({ ...c, eventDate: e.target.value }))} className="h-11 rounded-lg border border-[#4A3F45] bg-ink-soft px-3 text-white" />
+                </label>
+              )}
+            </div>
+          </>
+        ) : (
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            {favors ? (
+              <span className="text-sm text-[#CFC6CB]">{favorCount ? `${favorCount} favors` : "Pick your favors above"}</span>
+            ) : (
+              <label className="flex items-center gap-3 text-sm text-[#CFC6CB]">
+                Quantity
+                <input type="number" min={1} max={50} value={quantity} onChange={(e) => setQuantity(Math.max(1, Math.min(50, Number(e.target.value) || 1)))} className="h-11 w-20 rounded-lg border border-[#4A3F45] bg-ink-soft px-3 text-white" />
+              </label>
+            )}
+            <span className="font-serif text-[32px] text-gold">{formatCents(total)}</span>
+          </div>
+        )}
         {error ? <p role="alert" className="rounded-lg bg-[#3A1426] px-3 py-2 text-sm text-[#FFD1E8]">{error}</p> : null}
-        <button type="submit" disabled={uploading !== null} className="btn btn-pink min-h-[54px] text-base">
-          {product.kind === "SERVICE" ? "Add class to cart" : "Add to cart"}
+        <button type="submit" disabled={uploading !== null || sending} className="btn btn-pink min-h-[54px] text-base">
+          {mode === "quote" ? (sending ? "Sending…" : "Request a quote") : product.kind === "SERVICE" ? "Add class to cart" : "Add to cart"}
         </button>
         {added ? (
           <p role="status" className="text-center text-sm text-[#FFD1E8]">
@@ -191,6 +345,8 @@ export function ProductForm({ product, fields, addOns }: Props) {
           <p className="text-center text-xs text-[#A99FA5]">
             {product.kind === "SERVICE"
               ? "We'll confirm your class date by email or text."
+              : mode === "quote"
+              ? `We'll reply with pricing for your favors. Please reach out at least ${product.leadDays} days before your event.`
               : `Please order at least ${product.leadDays} days before your event. You'll get a design proof before we print.`}
           </p>
         )}

@@ -1,7 +1,7 @@
 import { getAllContent } from "./content";
 import { db } from "./db";
 import { getPaymentSettings } from "./payment-settings";
-import { parseCustomFields } from "./custom-fields";
+import { MAX_FAVOR_QTY, parseCustomFields, parseFavors } from "./custom-fields";
 import type { CartItem } from "./cart-types";
 import type { ProductKind } from "@prisma/client";
 
@@ -41,9 +41,22 @@ export async function priceCart(items: CartItem[], fulfillment: "PICKUP" | "SHIP
     }
     const fields = parseCustomFields(product.customFields);
     const customization: Record<string, string> = {};
+    let favorsCents = 0;
     for (const field of fields) {
       const answer = (item.customization[field.key] ?? "").trim();
       if (field.required && !answer) throw new PricingError(`"${field.label}" is required for ${product.name}.`);
+      if (field.type === "favors" && answer) {
+        const picks = parseFavors(answer);
+        if (!picks) throw new PricingError(`Please choose your ${field.label.toLowerCase()} again.`);
+        const min = field.minQty ?? 1;
+        for (const pick of picks) {
+          const option = field.items?.find((o) => o.name === pick.name);
+          if (!option) throw new PricingError(`"${pick.name}" is no longer offered. Please update ${product.name}.`);
+          if (option.priceCents === null) throw new PricingError(`"${pick.name}" isn't priced yet. Please request a quote for ${product.name}.`);
+          if (pick.quantity < min || pick.quantity > MAX_FAVOR_QTY) throw new PricingError(`Please order between ${min} and ${MAX_FAVOR_QTY} ${pick.name}.`);
+          favorsCents += option.priceCents * pick.quantity;
+        }
+      }
       if (field.type === "select" && answer && field.options && !field.options.includes(answer)) {
         throw new PricingError(`Please choose a valid option for "${field.label}".`);
       }
@@ -55,15 +68,17 @@ export async function priceCart(items: CartItem[], fulfillment: "PICKUP" | "SHIP
       return { name: addOn.name, priceCents: addOn.priceCents, quantity: a.quantity };
     });
     const addOnTotal = addOns.reduce((s, a) => s + a.priceCents * a.quantity, 0);
+    const unitPriceCents = product.priceCents + favorsCents;
+    if (unitPriceCents <= 0) throw new PricingError(`Please choose what you'd like in ${product.name}.`);
     return {
       productId: product.id,
       productName: product.name,
       kind: product.kind,
-      unitPriceCents: product.priceCents,
+      unitPriceCents,
       quantity: item.quantity,
       customization,
       addOns,
-      lineTotalCents: product.priceCents * item.quantity + addOnTotal,
+      lineTotalCents: unitPriceCents * item.quantity + addOnTotal,
     };
   });
 

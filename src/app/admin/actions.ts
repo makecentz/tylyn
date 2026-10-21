@@ -169,7 +169,14 @@ export async function saveProduct(input: ProductInput): Promise<{ error?: string
   const p = parsed.data;
   const priceCents = parseDollars(p.price);
   if (priceCents === null) return { error: "Enter a price like 125 or 125.00." };
-  if (p.onlineCheckout && p.active && priceCents === 0) return { error: "Set a price before turning on online checkout." };
+  const favors = p.customFields.filter((f) => f.type === "favors");
+  if (favors.length > 1) return { error: "A product can only have one favor picker." };
+  if (p.onlineCheckout && p.active && priceCents === 0 && !favors.length) return { error: "Set a price before turning on online checkout." };
+  for (const f of favors) {
+    if (!f.items?.length) return { error: `Add at least one item to "${f.label}".` };
+    const bad = f.items.find((i) => /,|×/.test(i.name));
+    if (bad) return { error: `Favor names can't contain commas: "${bad.name}".` };
+  }
   const keys = new Set<string>();
   for (const f of p.customFields) {
     if (keys.has(f.key)) return { error: `Two customer questions share the label "${f.label}". Please rename one.` };
@@ -230,6 +237,19 @@ export async function saveAddOn(_prev: { error?: string; ok?: string } | null, f
   else await db.addOn.create({ data });
   revalidatePath("/", "layout");
   return { ok: `Saved ${name}.` };
+}
+
+/** Creates an add-on from the product editor so it can be ticked without leaving the page. */
+export async function quickAddAddOn(name: string, price: string): Promise<{ error?: string; addOn?: { id: string; name: string; priceCents: number } }> {
+  await requireAdmin();
+  const trimmed = name.trim().slice(0, 120);
+  const priceCents = parseDollars(price);
+  if (!trimmed) return { error: "Give the add-on a name." };
+  if (priceCents === null) return { error: "Enter a price like 25 or 25.00." };
+  const last = await db.addOn.findFirst({ orderBy: { sortOrder: "desc" }, select: { sortOrder: true } });
+  const row = await db.addOn.create({ data: { name: trimmed, priceCents, sortOrder: (last?.sortOrder ?? 0) + 1 } });
+  revalidatePath("/", "layout");
+  return { addOn: { id: row.id, name: row.name, priceCents: row.priceCents } };
 }
 
 export async function deleteAddOn(formData: FormData) {

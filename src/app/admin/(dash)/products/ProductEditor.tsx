@@ -4,7 +4,8 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { customFieldTypes, defaultClassFields, defaultPartyFields, slugifyKey, type CustomField } from "@/lib/custom-fields";
 import { formatCents } from "@/lib/money";
-import { saveProduct, type ProductInput } from "../../actions";
+import Link from "next/link";
+import { quickAddAddOn, saveProduct, type ProductInput } from "../../actions";
 import { ImageListEditor } from "../ImageListEditor";
 
 type Initial = Omit<ProductInput, "customFields"> & { customFields: CustomField[] };
@@ -16,7 +17,56 @@ const fieldTypeLabels: Record<(typeof customFieldTypes)[number], string> = {
   date: "Date",
   photo: "Photo upload",
   select: "Dropdown",
+  favors: "Favor picker",
 };
+
+function itemsToText(items: CustomField["items"]) {
+  return (items ?? []).map((i) => (i.priceCents === null ? i.name : `${i.name} - ${(i.priceCents / 100).toFixed(2)}`)).join("\n");
+}
+
+function textToItems(text: string): NonNullable<CustomField["items"]> {
+  return text
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const m = /^(.*?)\s*[-–]\s*\$?(\d+(?:\.\d{1,2})?)$/.exec(line);
+      return m ? { name: m[1].trim(), priceCents: Math.round(parseFloat(m[2]) * 100) } : { name: line, priceCents: null };
+    })
+    .filter((i) => i.name);
+}
+
+/** Favor list as plain text, one per line with an optional price per piece: "Capri Suns - 1.50". */
+function FavorItemsEditor({ field, onChange }: { field: CustomField; onChange: (patch: Partial<CustomField>) => void }) {
+  const [text, setText] = useState(() => itemsToText(field.items));
+  const items = field.items ?? [];
+  const unpriced = items.filter((i) => i.priceCents === null).length;
+  return (
+    <div className="flex flex-col gap-3 sm:col-span-4">
+      <label className="field">Favor items (one per line, price per piece after a dash)
+        <textarea
+          className="input font-mono text-sm"
+          rows={10}
+          value={text}
+          placeholder={"Capri Suns - 1.50\nRing Pops - 1.25"}
+          onChange={(e) => {
+            setText(e.target.value);
+            onChange({ items: textToItems(e.target.value) });
+          }}
+        />
+      </label>
+      <label className="field max-w-[220px]">Minimum per item
+        <input className="input" type="number" min={1} max={500} value={field.minQty ?? 10} onChange={(e) => onChange({ minQty: Math.max(1, Math.min(500, Number(e.target.value) || 1)) })} />
+      </label>
+      <p className="text-sm text-mute">
+        {items.length} items.{" "}
+        {unpriced
+          ? `${unpriced} still need a price, so shoppers send a quote request instead of paying online.`
+          : "Every item has a price, so shoppers can add their picks to the cart and pay online."}
+      </p>
+    </div>
+  );
+}
 
 function toSlug(name: string) {
   return name.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/['’]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
@@ -25,7 +75,7 @@ function toSlug(name: string) {
 export function ProductEditor({
   initial,
   collections,
-  addOns,
+  addOns: initialAddOns,
 }: {
   initial: Initial;
   collections: { id: string; name: string }[];
@@ -37,6 +87,25 @@ export function ProductEditor({
   const [newInclude, setNewInclude] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [addOns, setAddOns] = useState(initialAddOns);
+  const [newAddOn, setNewAddOn] = useState({ name: "", price: "" });
+  const [addOnError, setAddOnError] = useState<string | null>(null);
+  const [addingAddOn, setAddingAddOn] = useState(false);
+
+  async function createAddOn() {
+    setAddOnError(null);
+    setAddingAddOn(true);
+    const res = await quickAddAddOn(newAddOn.name, newAddOn.price);
+    setAddingAddOn(false);
+    if (!res.addOn) {
+      setAddOnError(res.error ?? "Couldn't add that add-on.");
+      return;
+    }
+    const created = res.addOn;
+    setAddOns((list) => [...list, created]);
+    setP((x) => ({ ...x, addOnIds: [...x.addOnIds, created.id] }));
+    setNewAddOn({ name: "", price: "" });
+  }
 
   const set = <K extends keyof Initial>(k: K, v: Initial[K]) => setP((x) => ({ ...x, [k]: v }));
 
@@ -100,7 +169,7 @@ export function ProductEditor({
                 <option value="SERVICE">Service or class (booked by date)</option>
               </select>
             </label>
-            <label className="field">Price
+            <label className="field">{p.customFields.some((f) => f.type === "favors") ? "Design fee (added to the favors, 0 for none)" : "Price"}
               <input className="input" inputMode="decimal" placeholder="125.00" value={p.price} onChange={(e) => set("price", e.target.value)} />
             </label>
             <label className="field">Price label (optional)
@@ -166,6 +235,7 @@ export function ProductEditor({
                 Required
               </label>
               <button type="button" onClick={() => set("customFields", p.customFields.filter((_, j) => j !== i))} className="min-h-[46px] px-2 text-sm font-semibold text-[#B3124F]">Remove</button>
+              {f.type === "favors" ? <FavorItemsEditor field={f} onChange={(patch) => setField(i, patch)} /> : null}
               {f.type === "select" ? (
                 <label className="field sm:col-span-4">Choices (one per line)
                   <textarea className="input" rows={3} value={(f.options ?? []).join("\n")} onChange={(e) => setField(i, { options: e.target.value.split("\n").map((s) => s.trim()).filter(Boolean) })} />
@@ -201,7 +271,7 @@ export function ProductEditor({
 
         <section className="card flex flex-col gap-1">
           <h2 className="mb-1 font-serif text-xl">Add-ons offered</h2>
-          {addOns.length === 0 ? <p className="text-sm text-mute">No add-ons yet. Create them under Add-ons and collections.</p> : null}
+          {addOns.length === 0 ? <p className="text-sm text-mute">No add-ons yet. Add one below.</p> : null}
           {addOns.map((a) => (
             <label key={a.id} className="flex min-h-11 items-center justify-between gap-3 text-sm">
               <span>{a.name} · {formatCents(a.priceCents)}</span>
@@ -213,9 +283,19 @@ export function ProductEditor({
               />
             </label>
           ))}
+          <div className="mt-2 flex flex-col gap-2 border-t border-line pt-3">
+            <span className="text-sm font-semibold">New add-on</span>
+            <div className="grid grid-cols-[1fr_90px] gap-2">
+              <input className="input" aria-label="New add-on name" placeholder="e.g. Balloon garland" value={newAddOn.name} onChange={(e) => setNewAddOn((a) => ({ ...a, name: e.target.value }))} />
+              <input className="input" aria-label="New add-on price" inputMode="decimal" placeholder="25.00" value={newAddOn.price} onChange={(e) => setNewAddOn((a) => ({ ...a, price: e.target.value }))} />
+            </div>
+            {addOnError ? <p role="alert" className="text-sm text-[#B3124F]">{addOnError}</p> : null}
+            <button type="button" onClick={createAddOn} disabled={addingAddOn} className="btn btn-outline min-h-11">{addingAddOn ? "Adding…" : "+ Add and offer it here"}</button>
+            <Link href="/admin/addons" target="_blank" className="text-sm font-semibold text-pink-deep underline">Edit prices or remove add-ons</Link>
+          </div>
         </section>
 
-        <section className="card flex flex-col gap-3 bg-ink text-white">
+        <section className="card flex flex-col gap-3">
           <label className="field">Minimum days before the event or class
             <input type="number" min={0} max={365} className="input" value={p.leadDays} onChange={(e) => set("leadDays", Number(e.target.value) || 0)} />
           </label>
