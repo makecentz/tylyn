@@ -12,7 +12,11 @@ export default async function ClassBookingsPage({ searchParams }: { searchParams
   const today = shopToday();
   const weekEnd = new Date(today.getTime() + 7 * 86_400_000);
 
-  const base: Prisma.OrderWhereInput = { paymentStatus: { not: "PENDING" }, items: { some: { kind: "SERVICE" } } };
+  // Unpaid online checkouts are abandoned carts; unpaid bookings the owner added by hand still count.
+  const base: Prisma.OrderWhereInput = {
+    AND: [{ OR: [{ paymentStatus: { not: "PENDING" } }, { manual: true }] }],
+    items: { some: { kind: "SERVICE" } },
+  };
   const where: Prisma.OrderWhereInput = {
     ...base,
     ...(status === "open" ? { classStatus: { in: OPEN } } : status === "all" ? {} : { classStatus: status as ClassStatus }),
@@ -59,12 +63,15 @@ export default async function ClassBookingsPage({ searchParams }: { searchParams
     <>
       <PageTitle
         actions={
+          <div className="flex flex-wrap items-center gap-2">
+          <Link href="/admin/classes/new" className="btn btn-pink min-h-[46px]">+ Add a class</Link>
           <form className="flex items-center gap-2" action="/admin/classes">
             <input type="hidden" name="status" value="all" />
             <label className="sr-only" htmlFor="q">Search class bookings</label>
             <input id="q" name="q" defaultValue={q} placeholder="Name, email, phone or booking #" className="input w-64" />
             <button className="btn btn-dark min-h-[46px] px-5">Search</button>
           </form>
+          </div>
         }
       >
         Class bookings

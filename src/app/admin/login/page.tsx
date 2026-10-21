@@ -1,4 +1,5 @@
 import Image from "next/image";
+import Link from "next/link";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { title: "Admin sign in", robots: { index: false } };
@@ -13,14 +14,18 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
   return (
     <div className="flex min-h-screen items-center justify-center bg-ink px-4">
       <div className="flex w-full max-w-sm flex-col items-center gap-6">
-        <Image src="/logo.png" alt="Tylyn Tingz Creations" width={900} height={311} className="h-24 w-auto" priority />
+        <Link href="/" aria-label="Back to the website">
+          <Image src="/logo.png" alt="Tylyn Tingz Creations" width={900} height={311} className="h-24 w-auto" priority />
+        </Link>
         <form method="post" action="/api/admin/login" className="card flex w-full flex-col gap-4">
           <h1 className="font-serif text-2xl">Admin sign in</h1>
           <label className="field">Email<input name="email" type="email" autoComplete="username" required className="input" /></label>
           <label className="field">Password<input name="password" type="password" autoComplete="current-password" required className="input" /></label>
           {error && errors[error] ? <p role="alert" className="text-sm text-[#B3124F]">{errors[error]}</p> : null}
           <button className="btn btn-pink">Sign in</button>
+          <Link href="/admin/password" className="text-center text-sm font-semibold text-pink-deep underline">Change password</Link>
         </form>
+        <Link href="/" className="text-sm font-semibold text-white underline">← Back to the website</Link>
       </div>
     </div>
   );
