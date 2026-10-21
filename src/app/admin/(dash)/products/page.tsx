@@ -2,6 +2,9 @@ import Image from "next/image";
 import Link from "next/link";
 import { db } from "@/lib/db";
 import { formatCents } from "@/lib/money";
+import { favorsField, parseCustomFields } from "@/lib/custom-fields";
+import { deleteProduct } from "../../actions";
+import { ConfirmSubmit } from "../ConfirmSubmit";
 import { Flash, PageTitle } from "../admin-ui";
 
 export default async function ProductsPage({ searchParams }: { searchParams: Promise<{ deleted?: string }> }) {
@@ -15,13 +18,14 @@ export default async function ProductsPage({ searchParams }: { searchParams: Pro
       <PageTitle actions={<Link href="/admin/products/new" className="btn btn-pink">+ Add product or service</Link>}>Products and services</PageTitle>
       <Flash message={deleted ? "Product deleted." : undefined} />
       <div className="overflow-x-auto rounded-2xl bg-white">
-        <table className="w-full min-w-[680px] border-collapse text-sm">
+        <table className="w-full min-w-[820px] border-collapse text-sm">
           <thead>
             <tr className="text-left text-xs uppercase tracking-[0.08em] text-mute">
               <th scope="col" className="px-5 py-4 font-semibold">Product</th>
               <th scope="col" className="px-3 py-4 font-semibold">Collection</th>
               <th scope="col" className="px-3 py-4 font-semibold">Price</th>
-              <th scope="col" className="px-5 py-4 font-semibold">Visibility</th>
+              <th scope="col" className="px-3 py-4 font-semibold">Visibility</th>
+              <th scope="col" className="px-5 py-4 font-semibold"><span className="sr-only">Actions</span></th>
             </tr>
           </thead>
           <tbody>
@@ -38,12 +42,25 @@ export default async function ProductsPage({ searchParams }: { searchParams: Pro
                   </Link>
                 </td>
                 <td className="px-3 py-3 text-[#4A3F45]">{p.collection?.name ?? "—"}</td>
-                <td className="px-3 py-3">{p.priceCents ? formatCents(p.priceCents) : <span className="text-[#B3124F]">Not set</span>}</td>
-                <td className="px-5 py-3">
+                <td className="px-3 py-3">
+                  {favorsField(parseCustomFields(p.customFields)) ? "Per favor" : p.priceCents ? formatCents(p.priceCents) : <span className="text-[#B3124F]">Not set</span>}
+                </td>
+                <td className="px-3 py-3">
                   <div className="flex flex-wrap gap-1.5 text-xs font-bold">
                     {p.active ? <span className="rounded-full bg-[#D9F5E6] px-2.5 py-1 text-[#0F5132]">In shop</span> : <span className="rounded-full bg-[#EEEAEC] px-2.5 py-1 text-[#4A3F45]">Hidden</span>}
                     {p.active && !p.onlineCheckout ? <span className="rounded-full bg-[#FFF1C7] px-2.5 py-1 text-[#5C4500]">Inquiry only</span> : null}
                     {p.featured ? <span className="rounded-full bg-ink px-2.5 py-1 text-gold">Featured</span> : null}
+                  </div>
+                </td>
+                <td className="px-5 py-3">
+                  <div className="flex items-center justify-end gap-2">
+                    <Link href={`/admin/products/${p.id}`} className="btn btn-outline min-h-10 px-4 text-[13px]">Edit</Link>
+                    <form action={deleteProduct}>
+                      <input type="hidden" name="id" value={p.id} />
+                      <ConfirmSubmit message={`Delete ${p.name}? This can't be undone. Hiding it from the shop is usually better if it's on past orders.`} className="min-h-10 rounded-full px-3 text-[13px] font-semibold text-[#B3124F] hover:bg-[#FFE3EC]">
+                        Delete
+                      </ConfirmSubmit>
+                    </form>
                   </div>
                 </td>
               </tr>
