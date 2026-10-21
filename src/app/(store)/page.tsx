@@ -21,38 +21,31 @@ export default async function HomePage() {
       include: { products: { where: { active: true }, orderBy: { priceCents: "asc" }, select: { images: true, priceCents: true, onlineCheckout: true } } },
     }),
   ]);
-  const { hero, homeSections, howItWorks, classBanner, gallery, about } = content;
+  const { hero, homeSections, howItWorks, classBanner, gallery, about, contact } = content;
   const visibleCollections = collections.filter((c) => c.products.length > 0);
 
   return (
     <>
       <section className="bg-ink text-white">
-        <div className="mx-auto flex max-w-[1200px] flex-wrap items-center gap-14 px-4 py-20 sm:px-6 lg:py-24">
-          <div className="flex min-w-[min(100%,460px)] flex-1 flex-col gap-5">
-            <span className="font-script text-5xl leading-none text-pink sm:text-[54px]">{hero.script}</span>
-            <h1 className="font-serif text-4xl font-bold leading-[1.05] sm:text-6xl">
-              {hero.headline} <span className="text-gold">{hero.highlight}</span>
-            </h1>
-            <p className="max-w-[520px] text-lg leading-relaxed text-[#E9E2E6]">{hero.intro}</p>
-            <div className="mt-2 flex flex-wrap gap-3.5">
-              <Link href="/shop" className="btn btn-pink min-h-[52px]">{hero.primaryLabel}</Link>
-              <Link href="/classes" className="btn btn-outline-gold min-h-[52px]">{hero.secondaryLabel}</Link>
-            </div>
+        <video
+          className="block aspect-video w-full bg-ink object-cover"
+          poster="/videos/hero-poster.jpg"
+          autoPlay
+          loop
+          muted
+          playsInline
+          preload="auto"
+          aria-label="Tylyn Tingz custom party favors"
+        >
+          <source src="/videos/hero.mp4" type="video/mp4" />
+          <source src="/videos/hero.webm" type="video/webm" />
+        </video>
+        <div className="mx-auto flex max-w-[1200px] flex-col gap-5 px-4 py-8 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+          {contact.tagline ? <p className="font-script text-3xl leading-tight text-pink-light sm:text-4xl">{contact.tagline}</p> : <span />}
+          <div className="flex flex-wrap gap-3.5 sm:shrink-0 sm:justify-end">
+            <Link href="/shop" className="btn btn-pink min-h-[52px]">{hero.primaryLabel}</Link>
+            <Link href="/classes" className="btn btn-outline-gold min-h-[52px]">{hero.secondaryLabel}</Link>
           </div>
-          {hero.images.length ? (
-            <div className="relative h-[380px] min-w-[min(100%,380px)] flex-1 sm:h-[460px]">
-              {hero.images.slice(0, 2).map((src, i) => (
-                <div
-                  key={src + i}
-                  className={`absolute aspect-[3/4] w-[48%] overflow-hidden rounded-[14px] border-[3px] shadow-2xl ${
-                    i === 0 ? "left-[4%] top-10 -rotate-6 border-gold" : "right-[4%] top-0 rotate-[5deg] border-pink"
-                  }`}
-                >
-                  <Image src={src} alt="" fill sizes="(max-width: 768px) 50vw, 25vw" className="object-cover object-top" priority={i === 0} />
-                </div>
-              ))}
-            </div>
-          ) : null}
         </div>
       </section>
 
