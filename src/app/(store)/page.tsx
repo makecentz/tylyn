@@ -21,30 +21,37 @@ export default async function HomePage() {
       include: { products: { where: { active: true }, orderBy: { priceCents: "asc" }, select: { images: true, priceCents: true, onlineCheckout: true } } },
     }),
   ]);
-  const { hero, homeSections, howItWorks, classBanner, gallery, about, contact } = content;
+  const { hero, homeSections, howItWorks, classBanner, gallery, about } = content;
   const visibleCollections = collections.filter((c) => c.products.length > 0);
 
   return (
     <>
-      <section className="bg-ink text-white">
+      <section className="relative isolate flex min-h-[780px] items-end overflow-hidden bg-black text-white sm:aspect-video sm:min-h-[560px] sm:items-center">
         <video
-          className="block aspect-video w-full bg-ink object-cover"
-          poster="/videos/hero-poster.jpg"
+          className="absolute inset-0 -z-20 h-full w-full object-cover object-[65%_center]"
+          poster="/videos/hero-v2-poster.jpg"
           autoPlay
           loop
           muted
           playsInline
           preload="auto"
-          aria-label="Tylyn Tingz custom party favors"
+          aria-hidden="true"
         >
-          <source src="/videos/hero.mp4" type="video/mp4" />
-          <source src="/videos/hero.webm" type="video/webm" />
+          <source src="/videos/hero-v2.mp4" type="video/mp4" />
+          <source src="/videos/hero-v2.webm" type="video/webm" />
         </video>
-        <div className="mx-auto flex max-w-[1200px] flex-col gap-5 px-4 py-8 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-          {contact.tagline ? <p className="font-script text-3xl leading-tight text-pink-light sm:text-4xl">{contact.tagline}</p> : <span />}
-          <div className="flex flex-wrap gap-3.5 sm:shrink-0 sm:justify-end">
-            <Link href="/shop" className="btn btn-pink min-h-[52px]">{hero.primaryLabel}</Link>
-            <Link href="/classes" className="btn btn-outline-gold min-h-[52px]">{hero.secondaryLabel}</Link>
+        <div className="absolute inset-0 -z-10 bg-gradient-to-t from-black via-black/60 to-transparent sm:bg-gradient-to-r sm:from-black/90 sm:via-black/55 sm:to-transparent" />
+        <div className="mx-auto w-full max-w-[1200px] px-4 pb-14 pt-40 sm:px-6 sm:py-16">
+          <div className="flex max-w-[560px] flex-col gap-5">
+            {hero.script ? <span className="font-script text-5xl leading-none text-pink sm:text-[54px]">{hero.script}</span> : null}
+            <h1 className="font-serif text-4xl font-bold leading-[1.05] sm:text-5xl lg:text-6xl">
+              {hero.headline} {hero.highlight ? <span className="text-gold">{hero.highlight}</span> : null}
+            </h1>
+            {hero.intro ? <p className="max-w-[520px] text-lg leading-relaxed text-[#E9E2E6]">{hero.intro}</p> : null}
+            <div className="mt-2 flex flex-wrap gap-3.5">
+              <Link href="/shop" className="btn btn-pink min-h-[52px]">{hero.primaryLabel}</Link>
+              <Link href="/classes" className="btn btn-outline-gold min-h-[52px]">{hero.secondaryLabel}</Link>
+            </div>
           </div>
         </div>
       </section>
